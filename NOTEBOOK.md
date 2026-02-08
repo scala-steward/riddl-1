@@ -16,6 +16,13 @@ All workflow paths updated to `scala-3.7.4`.
 `FlattenPass`, multi-platform release workflow. Native macOS ARM64
 binary distributed via Homebrew.
 
+**Release 1.6.0 Published**: ValidationPass bug fixes and new
+validations. Fixed SagaStep undo check, SagaStep shape check,
+duplicate checkMetadata. Added validation for Schema, Relationship,
+Streamlet shape/handler, Adaptor/Repository handler requirements,
+Projector repo ref, Epic/UseCase user ref, Function input/output
+types. 1,526 tests pass (0 failures). Published to GitHub Packages.
+
 **Release 1.5.0 Published**: Extracted cross-platform `RiddlLib`
 trait from JS-only `RiddlAPI`. `RiddlAPI` is now a thin JS facade
 delegating to `RiddlLib`. `parseString` returns opaque Root handle;
