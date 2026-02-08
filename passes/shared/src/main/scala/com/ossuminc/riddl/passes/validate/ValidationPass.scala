@@ -151,6 +151,10 @@ case class ValidationPass(
         validateInclude(include)
       case bi: BASTImport =>
         validateBASTImport(bi, parentsAsSeq)
+      case s: Schema =>
+        validateSchema(s, parentsAsSeq)
+      case r: Relationship =>
+        validateRelationship(r, parentsAsSeq)
       case _: MatchCase           => () // Validated through MatchStatement
       case _: Definition          => () // abstract type
       case _: NonDefinitionValues => () // We only validate definitions
@@ -465,7 +469,6 @@ case class ValidationPass(
         s.loc
       )
     }
-    checkMetadata(s)
   }
 
   private def validateFunction(
@@ -480,6 +483,12 @@ case class ValidationPass(
       MissingWarning,
       f.errorLoc
     )
+    f.input.foreach { agg =>
+      checkTypeExpression(agg, f, parents)
+    }
+    f.output.foreach { agg =>
+      checkTypeExpression(agg, f, parents)
+    }
     checkMetadata(f)
   }
 
@@ -501,6 +510,62 @@ case class ValidationPass(
   private def validateBASTImport(bi: BASTImport, parents: Parents): Unit = {
     check(bi.path.s.nonEmpty, "BAST load has no path specified", Messages.Error, bi.loc)
     check(bi.path.s.endsWith(".bast"), s"BAST load path '${bi.path.s}' should end with .bast", Messages.Warning, bi.loc)
+  }
+
+  private def validateSchema(
+    schema: Schema,
+    parents: Parents
+  ): Unit = {
+    checkIdentifierLength(schema)
+    checkMetadata(schema)
+    checkNonEmpty(
+      schema.data.toSeq,
+      "data definitions",
+      schema,
+      schema.errorLoc,
+      MissingWarning,
+      required = true
+    )
+    schema.schemaKind match {
+      case RepositorySchemaKind.Flat | RepositorySchemaKind.Document |
+           RepositorySchemaKind.Columnar | RepositorySchemaKind.Vector =>
+        if schema.links.nonEmpty then
+          messages.addWarning(
+            schema.errorLoc,
+            s"${schema.identify} is ${schema.schemaKind} and should not define links"
+          )
+      case RepositorySchemaKind.Graphical =>
+        if schema.links.isEmpty && schema.data.nonEmpty then
+          messages.addWarning(
+            schema.errorLoc,
+            s"${schema.identify} is graphical but has no links (edges)"
+          )
+      case _ => ()
+    }
+    if schema.schemaKind == RepositorySchemaKind.Vector && schema.data.size > 1 then
+      messages.addWarning(
+        schema.errorLoc,
+        s"${schema.identify} is a vector schema but defines ${schema.data.size} data nodes; typically only one is expected"
+      )
+    schema.data.values.foreach { typeRef =>
+      checkRef[Type](typeRef, parents)
+    }
+    schema.links.values.foreach { case (from, to) =>
+      checkRef[Field](from, parents)
+      checkRef[Field](to, parents)
+    }
+    schema.indices.foreach { fieldRef =>
+      checkRef[Field](fieldRef, parents)
+    }
+  }
+
+  private def validateRelationship(
+    relationship: Relationship,
+    parents: Parents
+  ): Unit = {
+    checkIdentifierLength(relationship)
+    checkRef[Processor[?]](relationship.withProcessor, parents)
+    checkMetadata(relationship)
   }
 
   private def validateEntity(
@@ -573,6 +638,9 @@ case class ValidationPass(
       Messages.Error,
       projector.errorLoc
     )
+    projector.repositories.foreach { repoRef =>
+      checkRef[Repository](repoRef, parents)
+    }
     checkMetadata(projector)
   }
 
@@ -590,6 +658,11 @@ case class ValidationPass(
       MissingWarning,
       required = false
     )
+    if repository.handlers.isEmpty && repository.nonEmpty then
+      messages.addMissing(
+        repository.errorLoc,
+        s"${repository.identify} should have at least one handler"
+      )
   }
 
   private def validateAdaptor(
@@ -607,6 +680,16 @@ case class ValidationPass(
             messages.addError(adaptor.errorLoc, message)
           }
         }
+        if adaptor.handlers.isEmpty && adaptor.nonEmpty then
+          messages.addMissing(
+            adaptor.errorLoc,
+            s"${adaptor.identify} should have at least one handler"
+          )
+        else if adaptor.handlers.nonEmpty && adaptor.handlers.forall(_.clauses.isEmpty) then
+          messages.addMissing(
+            adaptor.errorLoc,
+            s"${adaptor.identify} has only empty handlers"
+          )
         checkMetadata(adaptor)
       case None | Some(_) =>
         messages.addError(adaptor.errorLoc, "Adaptor not contained within Context")
@@ -619,6 +702,33 @@ case class ValidationPass(
   ): Unit = {
     addStreamlet(streamlet)
     checkContainer(parents, streamlet)
+    if streamlet.nonEmpty then
+      val numInlets = streamlet.inlets.size
+      val numOutlets = streamlet.outlets.size
+      streamlet.shape match {
+        case _: Source =>
+          check(numInlets == 0, s"${streamlet.identify} is a source but has $numInlets inlets; sources must have none", Messages.Error, streamlet.errorLoc)
+          check(numOutlets >= 1, s"${streamlet.identify} is a source but has no outlets; sources must have at least one", Messages.Error, streamlet.errorLoc)
+        case _: Sink =>
+          check(numInlets >= 1, s"${streamlet.identify} is a sink but has no inlets; sinks must have at least one", Messages.Error, streamlet.errorLoc)
+          check(numOutlets == 0, s"${streamlet.identify} is a sink but has $numOutlets outlets; sinks must have none", Messages.Error, streamlet.errorLoc)
+        case _: Flow =>
+          check(numInlets >= 1, s"${streamlet.identify} is a flow but has no inlets; flows must have at least one", Messages.Error, streamlet.errorLoc)
+          check(numOutlets >= 1, s"${streamlet.identify} is a flow but has no outlets; flows must have at least one", Messages.Error, streamlet.errorLoc)
+        case _: Merge =>
+          check(numInlets >= 2, s"${streamlet.identify} is a merge but has $numInlets inlets; merges must have at least two", Messages.Error, streamlet.errorLoc)
+          check(numOutlets >= 1, s"${streamlet.identify} is a merge but has no outlets; merges must have at least one", Messages.Error, streamlet.errorLoc)
+        case _: Split =>
+          check(numInlets >= 1, s"${streamlet.identify} is a split but has no inlets; splits must have at least one", Messages.Error, streamlet.errorLoc)
+          check(numOutlets >= 2, s"${streamlet.identify} is a split but has $numOutlets outlets; splits must have at least two", Messages.Error, streamlet.errorLoc)
+        case _: Router =>
+          check(numInlets >= 2, s"${streamlet.identify} is a router but has $numInlets inlets; routers must have at least two", Messages.Error, streamlet.errorLoc)
+          check(numOutlets >= 2, s"${streamlet.identify} is a router but has $numOutlets outlets; routers must have at least two", Messages.Error, streamlet.errorLoc)
+        case _: Void => ()
+      }
+    end if
+    if streamlet.handlers.isEmpty && streamlet.nonEmpty then
+      messages.addMissing(streamlet.errorLoc, s"${streamlet.identify} should have a handler")
     checkMetadata(streamlet)
   }
 
@@ -662,10 +772,10 @@ case class ValidationPass(
   ): Unit = {
     checkDefinition(parents, s)
     checkNonEmpty(s.doStatements.toSeq, "Do Statements", s, MissingWarning)
-    checkNonEmpty(s.doStatements.toSeq, "Revert Statements", s, MissingWarning)
+    checkNonEmpty(s.undoStatements.toSeq, "Revert Statements", s, MissingWarning)
     check(
-      s.doStatements.getClass == s.undoStatements.getClass,
-      "The primary action and revert action must be the same shape",
+      s.doStatements.nonEmpty == s.undoStatements.nonEmpty,
+      "A saga step with do statements must also have revert statements, and vice versa",
       Messages.Error,
       s.errorLoc
     )
@@ -685,9 +795,10 @@ case class ValidationPass(
     parents: Parents
   ): Unit = {
     checkContainer(parents, epic)
-    if epic.userStory.isEmpty then {
+    if epic.userStory.isEmpty then
       messages.addMissing(epic.errorLoc, s"${epic.identify} is missing a user story")
-    }
+    else
+      checkRef[User](epic.userStory.user, parents)
     checkMetadata(epic)
   }
 
@@ -750,6 +861,8 @@ case class ValidationPass(
     parents: Parents
   ): Unit = {
     checkDefinition(parents, uc)
+    if uc.userStory.nonEmpty then
+      checkRef[User](uc.userStory.user, parents)
     if uc.contents.nonEmpty then {
       uc.contents.foreach {
         case seq: SequentialInteractions =>
