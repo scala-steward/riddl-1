@@ -6,7 +6,7 @@ This is the central engineering notebook for the RIDDL project. It tracks curren
 
 ## Current Status
 
-**Last Updated**: February 6, 2026
+**Last Updated**: February 7, 2026
 
 **Scala Version**: 3.7.4 (overrides sbt-ossuminc's 3.3.7 LTS default due to
 compiler infinite loop bug with opaque types/intersection types in 3.3.x).
@@ -271,7 +271,80 @@ The `pseudoCodeBlock` parser now allows comments before and/or after `???`:
 
 ---
 
+## Changes Since v1.5.0
+
+- **ValidationPass bug fixes**: SagaStep undo check used
+  doStatements twice, SagaStep shape check was always-true,
+  validateState called checkMetadata twice
+- **New validations**: Schema (kind vs structure, ref resolution),
+  Relationship (processor ref), Streamlet shape vs inlet/outlet
+  count, handler requirements for Streamlet/Adaptor/Repository,
+  Projector repository ref, Epic/UseCase user story user ref,
+  Function input/output type expressions
+
 ## Session Log
+
+### February 7, 2026 (ValidationPass Gap Analysis & Enhancement)
+
+**Focus**: Comprehensive audit and enhancement of ValidationPass
+to catch missing validations and fix bugs.
+
+**Work Completed**:
+1. **Fixed 3 bugs**:
+   - SagaStep checked `doStatements` twice instead of
+     `undoStatements` for revert validation
+   - SagaStep shape check compared `getClass` of two
+     `Contents[Statements]` (always true) — replaced with
+     meaningful `nonEmpty` symmetry check
+   - `validateState` called `checkMetadata` twice — removed
+     duplicate
+2. **Added validation for 2 previously unvalidated definitions**:
+   - `Schema` — kind vs structure compatibility (flat/document/
+     columnar/vector shouldn't have links; graphical should;
+     vector expects single data node), data TypeRef resolution,
+     link FieldRef resolution, index FieldRef resolution
+   - `Relationship` — processor ref resolution, identifier
+     length, metadata checks
+3. **Added 6 semantic validations**:
+   - Streamlet shape vs inlet/outlet count (guarded by
+     `nonEmpty` to skip placeholders)
+   - Streamlet handler requirement
+   - Adaptor handler requirement + empty handler warning
+   - Repository handler requirement
+   - Projector repository ref resolution
+   - Epic/UseCase user story user ref resolution
+4. **Added Function input/output type validation** via
+   `checkTypeExpression` on `input`/`output` Aggregations
+5. **Updated 3 `.check` test expectation files** to reflect
+   new validation messages (everything, saga, streaming)
+
+**Test Results**: `sbt clean test` — 1,526 tests, 0 failures
+across all modules (JVM, JS, Native).
+
+**Commit**: `6d6185e5` — pushed to `origin/development`
+
+**Files Modified**:
+- `passes/shared/.../validate/ValidationPass.scala` — all
+  validation enhancements
+- `passes/input/check/everything/everything.check` — 12 new
+  expected messages
+- `passes/input/check/saga/saga.check` — 5 new expected
+  messages
+- `passes/input/check/streaming/streaming.check` — 3 new
+  expected messages
+
+**Remaining from gap analysis** (lower priority, not
+implemented this session):
+- Schema kind-specific deep checks (relational link type
+  compatibility, etc.)
+- Adaptor message compatibility with referenced context
+- Saga compensation symmetry hints
+- Entity FSM morph/become statement presence check
+- `checkStreamingUsage()` implementation (still a no-op)
+- Handler message type vs container type appropriateness
+- Context isolation warnings
+
+---
 
 ### February 5, 2026 (RiddlLib Shared Trait, JS Test Fix)
 
