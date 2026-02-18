@@ -829,6 +829,27 @@ Then add to root aggregation: `.aggregate(..., mymodule, mymoduleJS, mymoduleNat
     ARM64. Removing `inline` fixes it; the compiler optimizes
     trivial delegations anyway. Filed as
     https://github.com/scala/scala3/issues/25306
-66. **Current release is 1.11.1** — Patch release with
-    PrettifyPass formatting fixes (indent, newlines, commas,
-    schema) and CI test fixes. Supersedes 1.11.0
+66. **Current release is 1.12.0** — Minor release with
+    prettify multi-file structure preservation fix. Supersedes
+    1.11.1
+67. **PrettifyPass multi-file mode** — `PrettifyPass.Options`
+    now carries `topFile`, `outputDir`, and `flatten`. When
+    `flatten=false` (the new default), prettify preserves
+    include/import structure across multiple output files.
+    `PrettifyCommand.Options.singleFile` defaults to `false`;
+    use `-s true` for flattened single-file output
+68. **BASTImport in HierarchyPass** — `HierarchyPass` now has
+    `openBASTImport`/`closeBASTImport` hooks and a
+    `traverseBASTImportContents(bi)` method (default `true`).
+    `PassVisitor` trait includes the two new methods. All
+    `PassVisitor` implementors must add them (even as no-ops)
+69. **PrettifyState URL normalization** — `toDestination()`
+    strips leading/trailing `/` from `outDir` before using it
+    as the URL basis field. Absolute output paths (e.g.,
+    `/var/folders/...`) would otherwise produce invalid
+    `file:////` URLs
+70. **Hugo submodules removed** — `.gitmodules` deleted (Feb
+    2026). The three stale Hugo theme submodule references
+    (hugo-theme-learn, redislabs-docs, hugo-theme-docdock)
+    were causing warnings on `git pull`. No submodule paths
+    were tracked in the tree; only `.gitmodules` remained

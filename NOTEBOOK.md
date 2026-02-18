@@ -8,6 +8,26 @@ This is the central engineering notebook for the RIDDL project. It tracks curren
 
 **Last Updated**: February 18, 2026
 
+### Release 1.12.0 Published (Feb 18, 2026)
+
+Minor release fixing prettify to retain multi-file include/
+import structure. Previously `riddlc prettify` always produced
+a single flattened file regardless of `--single-file` flag.
+
+Key changes:
+- `singleFile` default changed from `true` to `false`
+- `PrettifyPass.Options` expanded with `topFile`/`outputDir`
+- `PrettifyState` URL normalization for absolute output paths
+- BASTImport added to HierarchyPass/PassVisitor/VisitingPass
+- Include quote bug fixed in PrettifyVisitor
+- `writeOutput` uses output dir consistently, `TRUNCATE_EXISTING`
+- Two regression tests added (multi-file + flatten modes)
+- Stale Hugo submodule references removed (`.gitmodules`)
+
+All tests pass. Published to GitHub Packages (JVM, JS, Native).
+Release artifacts (native binaries, npm) generated via CI.
+Docker image build was cancelled (timed out).
+
 ### Release 1.11.1 Published (Feb 17, 2026)
 
 Patch release with PrettifyPass formatting fixes and CI test
@@ -148,6 +168,28 @@ go there, not this repo.
 ---
 
 ## Session Log
+
+### February 18, 2026 — Prettify Multi-File Fix + Release
+
+Fixed `riddlc prettify` to retain multi-file include/import
+structure (bug documented in `bugs/prettify-does-not-retain-
+file-structure.md`). Root causes: singleFile defaulting to
+true, PrettifyPass.Options missing outputDir/topFile, dead
+"nada" paths in PrettifyState, BASTImport invisible to
+HierarchyPass, and a missing closing quote in openInclude.
+
+Also cleaned up stale Hugo submodule references that caused
+warnings on `git pull`. Released as 1.12.0.
+
+**Notable discoveries**:
+- `PrettifyState.toDestination()` fails with absolute output
+  paths because the URL basis field can't start with `/`. Fixed
+  with normalization (strip leading/trailing `/`)
+- `BASTImport` extends `Container` but NOT `Branch`, so it fell
+  through to the `RiddlValue` catch-all in `HierarchyPass.traverse()`
+  and its contents were never visited
+- Added `traverseBASTImportContents()` hook to HierarchyPass so
+  PrettifyPass can suppress content traversal in non-flatten mode
 
 ### February 16, 2026 (evening) — CI Fixes
 
