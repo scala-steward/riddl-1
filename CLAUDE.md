@@ -808,7 +808,7 @@ Then add to root aggregation: `.aggregate(..., mymodule, mymoduleJS, mymoduleNat
     `publishLocal` runs. No extra configuration needed
 61. **sbt version is 1.12.1** — Updated from 1.12.0 in
     `project/build.properties`
-62. **Current release is 1.11.0** — Minor release adding
+62. **Release 1.11.0 included** — Minor release adding
     `validateStringQuick()`, `IncrementalValidator` APIs,
     ParentStack caching, and ValidationPass optimizations
 63. **Tests needing external repos download from GitHub** —
@@ -822,3 +822,13 @@ Then add to root aggregation: `.aggregate(..., mymodule, mymoduleJS, mymoduleNat
     causes `ModuleNotFoundError` at import. Pin
     `TatSu>=5.12.0,<5.17.0` in `requirements.txt`. CI uses
     Python 3.12 (set in `scala.yml`)
+65. **No `inline` on Contents extensions** — ScalaDoc 3.7.4
+    crashes with NPE in `ScalaSignatureProvider.methodSignature`
+    when generating docs for `inline` extension methods on
+    opaque types. Deterministic on Linux x86_64, not macOS
+    ARM64. Removing `inline` fixes it; the compiler optimizes
+    trivial delegations anyway. Filed as
+    https://github.com/scala/scala3/issues/25306
+66. **Current release is 1.11.1** — Patch release with
+    PrettifyPass formatting fixes (indent, newlines, commas,
+    schema) and CI test fixes. Supersedes 1.11.0

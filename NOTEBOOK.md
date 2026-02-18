@@ -6,7 +6,30 @@ This is the central engineering notebook for the RIDDL project. It tracks curren
 
 ## Current Status
 
-**Last Updated**: February 17, 2026
+**Last Updated**: February 18, 2026
+
+### Release 1.11.1 Published (Feb 17, 2026)
+
+Patch release with PrettifyPass formatting fixes and CI test
+fixes. Tagged, published to GitHub Packages, GitHub release
+created. All tests pass on all platforms.
+
+### ScalaDoc NPE Fix (Feb 18, 2026)
+
+Scala 3.7.4's ScalaDoc crashes with NPE in
+`ScalaSignatureProvider.methodSignature` when rendering
+`inline` extension methods on opaque types. Deterministic on
+Linux x86_64 (CI), never reproduces on macOS ARM64.
+
+**Root cause**: `SignatureBuilder.content()` returns null for
+inline extension methods on opaque types with complex type
+parameter patterns.
+
+**Fix**: Removed `inline` from all Contents extension methods
+in `Contents.scala`. The compiler optimizes these trivial
+one-line delegations regardless of the `inline` keyword.
+
+**Filed**: https://github.com/scala/scala3/issues/25306
 
 ### PrettifyPass Formatting Fixes (Feb 17, 2026)
 
