@@ -29,7 +29,7 @@ object Contents:
     mutable.ArrayBuffer.unapplySeq[T](contents)
 
   extension [CV <: RiddlValue](container: Contents[CV])
-    inline def apply(n: Int): CV = container.apply(n)
+    def apply(n: Int): CV = container.apply(n)
 end Contents
 
 extension [CV <: RiddlValue](sequence: Seq[CV])
@@ -40,35 +40,35 @@ extension [CV <: RiddlValue](sequence: Seq[CV])
     )
 
 extension [CV <: RiddlValue](container: Contents[CV])
-  inline def length: Int = container.length
-  inline def size: Int = container.length
-  inline def head: CV = container(0)
-  inline def indexOf[B >: CV](elem: B): Int = container.indexOf[B](elem, 0)
-  inline def splitAt(n: Int): (Contents[CV], Contents[CV]) = container.splitAt(n)
-  inline def indices: Range = Range(0, container.length)
-  inline def foreach[T](f: CV => T): Unit = container.foreach(f)
-  inline def forall(p: CV => Boolean): Boolean = container.forall(p)
-  inline def update(index: Int, elem: CV): Unit = container.update(index, elem)
-  inline def foldLeft[B](z: B)(op: (B, CV) => B): B = container.foldLeft[B](z)(op)
-  inline def isEmpty: Boolean = container.isEmpty
-  inline def nonEmpty: Boolean = !isEmpty
-  inline def mapValue[B <: RiddlValue](f: CV => B): Contents[B] = container.map[B](f)
-  inline def flatMap[B <: RiddlValue](f: CV => IterableOnce[B]): Contents[B] =
+  def length: Int = container.length
+  def size: Int = container.length
+  def head: CV = container(0)
+  def indexOf[B >: CV](elem: B): Int = container.indexOf[B](elem, 0)
+  def splitAt(n: Int): (Contents[CV], Contents[CV]) = container.splitAt(n)
+  def indices: Range = Range(0, container.length)
+  def foreach[T](f: CV => T): Unit = container.foreach(f)
+  def forall(p: CV => Boolean): Boolean = container.forall(p)
+  def update(index: Int, elem: CV): Unit = container.update(index, elem)
+  def foldLeft[B](z: B)(op: (B, CV) => B): B = container.foldLeft[B](z)(op)
+  def isEmpty: Boolean = container.isEmpty
+  def nonEmpty: Boolean = !isEmpty
+  def mapValue[B <: RiddlValue](f: CV => B): Contents[B] = container.map[B](f)
+  def flatMap[B <: RiddlValue](f: CV => IterableOnce[B]): Contents[B] =
     container.flatMap[B](f)
-  inline def startsWith[B >: CV](that: IterableOnce[B], offset: Int = 0): Boolean =
+  def startsWith[B >: CV](that: IterableOnce[B], offset: Int = 0): Boolean =
     container.startsWith[B](that)
   def toSet[B >: CV <: RiddlValue]: immutable.Set[B] = immutable.Set.from(container)
   def toSeq: immutable.Seq[CV] = container.toSeq
   def toIterator: Iterator[CV] = container.toIterator
-  inline def dropRight(howMany: Int): Contents[CV] = container.dropRight(howMany)
-  inline def drop(howMany: Int): Contents[CV] = container.drop(howMany)
-  inline def clear(): Unit = container.clear()
-  inline def remove(index: Int): CV = container.remove(index)
-  inline def append(elem: CV): Unit = container.append(elem)
-  inline def prepend(elem: CV): Unit = container.prepend(elem)
-  inline def +=(elem: CV): Contents[CV] = { container.addOne(elem); container }
-  inline def ++=(suffix: IterableOnce[CV]): Contents[CV] = { container.addAll(suffix); container }
-  inline def ++(suffix: IterableOnce[CV]): Contents[CV] =
+  def dropRight(howMany: Int): Contents[CV] = container.dropRight(howMany)
+  def drop(howMany: Int): Contents[CV] = container.drop(howMany)
+  def clear(): Unit = container.clear()
+  def remove(index: Int): CV = container.remove(index)
+  def append(elem: CV): Unit = container.append(elem)
+  def prepend(elem: CV): Unit = container.prepend(elem)
+  def +=(elem: CV): Contents[CV] = { container.addOne(elem); container }
+  def ++=(suffix: IterableOnce[CV]): Contents[CV] = { container.addAll(suffix); container }
+  def ++(suffix: IterableOnce[CV]): Contents[CV] =
     container.concat[CV](suffix).asInstanceOf[Contents[CV]]
   private def identified: Contents[CV] = container.filter(_.isIdentified)
   def filter[T <: RiddlValue: ClassTag]: Seq[T] =
