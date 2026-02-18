@@ -8,6 +8,7 @@ package com.ossuminc.riddl.passes
 
 import com.ossuminc.riddl.language.parsing.RiddlParserInput
 import com.ossuminc.riddl.language.AST
+import com.ossuminc.riddl.passes.prettify.{PrettifyOutput, PrettifyPass}
 import com.ossuminc.riddl.utils.{AbstractTestingBasis, PathUtils, PlatformContext}
 import com.ossuminc.riddl.utils.{ec, pc, Await}
 import com.ossuminc.riddl.utils.Timer
@@ -167,6 +168,58 @@ class RiddlTest extends AbstractTestingBasis {
           ofIndent must be > schemaIndent
           // index should be indented more than of
           indexIndent must be > ofIndent
+    }
+
+    "preserve include structure in multi-file mode" in {
+      val includePath = "language/input/includes/domainIncludes.riddl"
+      val includeUrl = PathUtils.urlFromCwdPath(Path.of(includePath))
+      implicit val ec: ExecutionContext = pc.ec
+      val future = RiddlParserInput.fromURL(includeUrl).map { rpi =>
+        Riddl.parse(rpi) match
+          case Left(messages) => fail(messages.format)
+          case Right(root) =>
+            val input = PassInput(root)
+            val outputs = PassesOutput()
+            val options = PrettifyPass.Options(flatten = false)
+            val result = Pass.runPass[PrettifyOutput](
+              input, outputs,
+              PrettifyPass(input, outputs, options)
+            )
+            val state = result.state
+            // Multi-file mode should produce more than one file
+            state.numFiles must be > 1
+            // The main file should contain an include directive
+            val mainContent = state.filesAsString
+            mainContent must include("include")
+      }
+      Await.result(future, 10.seconds)
+    }
+
+    "flatten includes in single-file mode" in {
+      val includePath = "language/input/includes/domainIncludes.riddl"
+      val includeUrl = PathUtils.urlFromCwdPath(Path.of(includePath))
+      implicit val ec: ExecutionContext = pc.ec
+      val future = RiddlParserInput.fromURL(includeUrl).map { rpi =>
+        Riddl.parse(rpi) match
+          case Left(messages) => fail(messages.format)
+          case Right(root) =>
+            val input = PassInput(root)
+            val outputs = PassesOutput()
+            val options = PrettifyPass.Options(flatten = true)
+            val result = Pass.runPass[PrettifyOutput](
+              input, outputs,
+              PrettifyPass(input, outputs, options)
+            )
+            val state = result.state
+            // Single-file mode should produce exactly one file
+            state.numFiles must be(1)
+            // The content should NOT contain include directives
+            val content = state.filesAsString
+            content must not include "include"
+            // But should contain the included type definition
+            content must include("foo")
+      }
+      Await.result(future, 10.seconds)
     }
 
   }

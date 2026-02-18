@@ -24,7 +24,11 @@ object PrettifyPass extends PassInfo[PrettifyPass.Options]:
     (in: PassInput, out: PassesOutput) => PrettifyPass(in, out, options)
   end creator
 
-  case class Options(flatten: Boolean = false) extends PassOptions
+  case class Options(
+    flatten: Boolean = false,
+    topFile: String = "",
+    outputDir: String = ""
+  ) extends PassOptions
 end PrettifyPass
 
 case class PrettifyOutput(
@@ -44,6 +48,12 @@ class PrettifyPass(
 )(using PlatformContext)
     extends VisitingPass[PrettifyVisitor](input, outputs, new PrettifyVisitor(options)):
   def name: String = PrettifyPass.name
+
+  /** In non-flatten mode, BASTImport contents are re-serialized
+    * to BAST files separately, so we skip inline traversal.
+    * In flatten mode, contents are inlined as RIDDL text.
+    */
+  override protected def traverseBASTImportContents(bi: BASTImport): Boolean = options.flatten
 
 //  requires(SymbolsPass)
 //  requires(ResolutionPass)

@@ -438,6 +438,17 @@ abstract class HierarchyPass(
     * @param parents
     *   The definition parents of the value
     */
+  /** Controls whether BASTImport contents are traversed.
+    * Override in subclasses to suppress content traversal
+    * (e.g., when emitting an import directive instead of
+    * inlining the imported content).
+    * @return true to traverse BASTImport contents, false to skip
+    */
+  protected def traverseBASTImportContents(bi: BASTImport): Boolean = true
+
+  protected def openBASTImport(bi: BASTImport, parents: Parents): Unit = ()
+  protected def closeBASTImport(bi: BASTImport, parents: Parents): Unit = ()
+
   override protected def traverse(definition: RiddlValue, parents: ParentStack): Unit = {
     definition match {
       case include: Include[?] => // treat includes specially
@@ -447,6 +458,13 @@ abstract class HierarchyPass(
         // HierarchyPass always calls openInclude/closeInclude to give subclasses visibility
         include.contents.foreach { item => traverse(item, parents) }
         closeInclude(include, def_parents)
+      case bastImport: BASTImport => // treat BASTImport like Include
+        val def_parents = parents.toParents
+        openBASTImport(bastImport, def_parents)
+        if traverseBASTImportContents(bastImport) then
+          bastImport.contents.foreach { item => traverse(item, parents) }
+        end if
+        closeBASTImport(bastImport, def_parents)
       case container: Branch[?] => // must be a container so descend
         val def_parents = parents.toParents // save this for the closeContainer below
         openContainer(container, def_parents)
@@ -488,6 +506,7 @@ trait PassVisitor:
   def openOutput(output: Output, parents: Parents): Unit
   def openInput(input: Input, parents: Parents): Unit
   def openInclude(include: Include[?], parents: Parents): Unit
+  def openBASTImport(bi: BASTImport, parents: Parents): Unit
 
   // Close for each type of container definition
   def closeType(typ: Type, parents: Parents): Unit
@@ -508,6 +527,7 @@ trait PassVisitor:
   def closeOutput(output: Output, parents: Parents): Unit
   def closeInput(input: Input, parents: Parents): Unit
   def closeInclude(include: Include[?], parents: Parents): Unit
+  def closeBASTImport(bi: BASTImport, parents: Parents): Unit
 
   // LeafDefinitions
   def doField(field: Field): Unit
@@ -653,6 +673,14 @@ abstract class VisitingPass[VT <: PassVisitor](
   override protected final def closeInclude(include: Include[?], parents: Parents): Unit =
     visitor.closeInclude(include, parents)
   end closeInclude
+
+  override protected final def openBASTImport(bi: BASTImport, parents: Parents): Unit =
+    visitor.openBASTImport(bi, parents)
+  end openBASTImport
+
+  override protected final def closeBASTImport(bi: BASTImport, parents: Parents): Unit =
+    visitor.closeBASTImport(bi, parents)
+  end closeBASTImport
 end VisitingPass
 
 /** An abstract PassOutput for use with passes that derive from CollectingPass. This just provides a

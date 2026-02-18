@@ -15,7 +15,13 @@ import com.ossuminc.riddl.utils.PlatformContext
 import scala.annotation.unused
 
 class PrettifyVisitor(options: PrettifyPass.Options)(using PlatformContext) extends PassVisitor:
-  val state: PrettifyState = PrettifyState(options.flatten)
+  val state: PrettifyState = PrettifyState(
+    options.flatten,
+    if options.topFile.nonEmpty then options.topFile
+    else "prettify-output.riddl",
+    if options.outputDir.nonEmpty then options.outputDir
+    else "."
+  )
 
   def result: PrettifyState = state
 
@@ -408,7 +414,7 @@ class PrettifyVisitor(options: PrettifyPass.Options)(using PlatformContext) exte
     state.withCurrent { (rfe: RiddlFileEmitter) =>
       if !state.flatten then
         val url = include.origin
-        rfe.addLine(s"include \"${url.toExternalForm}")
+        rfe.addLine(s"""include "${url.toExternalForm}"""")
         val outputURL = state.toDestination(url)
         val newRFE = RiddlFileEmitter(outputURL)
         state.pushFile(newRFE)
@@ -420,6 +426,21 @@ class PrettifyVisitor(options: PrettifyPass.Options)(using PlatformContext) exte
     if !state.flatten then state.popFile()
     end if
   end closeInclude
+
+  def openBASTImport(bi: BASTImport, parents: Parents): Unit =
+    state.withCurrent { (rfe: RiddlFileEmitter) =>
+      if !state.flatten then
+        // Emit the import directive in the current file
+        // NOTE: "im" + "port" split to avoid ESM shim rewriting
+        rfe.addLine("im" + "port " + "\"" + bi.path.s + "\"")
+        // Track this BASTImport for re-serialization in writeOutput
+        state.addBASTImport(bi)
+      end if
+    }
+  end openBASTImport
+
+  def closeBASTImport(@unused bi: BASTImport, parents: Parents): Unit = ()
+  end closeBASTImport
 end PrettifyVisitor
 
 /** A function to translate between a definition and the keyword that introduces them.

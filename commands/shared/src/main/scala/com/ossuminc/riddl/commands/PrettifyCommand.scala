@@ -25,7 +25,7 @@ object PrettifyCommand {
     inputFile: Option[Path] = None,
     outputDir: Option[Path] = Some(Path.of(System.getProperty("java.io.tmpdir"))),
     projectName: Option[String] = None,
-    singleFile: Boolean = true
+    singleFile: Boolean = false
   ) extends TranslationCommand.Options
       with PassOptions
       with PassCommandOptions:
@@ -93,9 +93,17 @@ class PrettifyCommand(using pc: PlatformContext)
   override def getPasses(
     options: PrettifyCommand.Options
   ): PassCreators = {
+    val topFile = options.inputFile
+      .map(_.getFileName.toString).getOrElse("")
+    val outDir = options.outputDir
+      .map(_.toString).getOrElse("")
     standardPasses ++ Seq(
       { (input: PassInput, outputs: PassesOutput) =>
-        PrettifyPass(input, outputs, PrettifyPass.Options(flatten = options.singleFile))
+        PrettifyPass(input, outputs, PrettifyPass.Options(
+          flatten = options.singleFile,
+          topFile = topFile,
+          outputDir = outDir
+        ))
       }
     )
   }
@@ -140,15 +148,16 @@ class PrettifyCommand(using pc: PlatformContext)
           StandardOpenOption.WRITE
         )
       else
-        val base = dirOverrides.getOrElse(Path.of("."))
         output.state.withFiles { (file: RiddlFileEmitter) =>
           val content = file.toString
-          val path = base.resolve(file.url.path)
+          val path = dir.resolve(file.url.path)
+          Files.createDirectories(path.getParent)
           Files.writeString(
             path,
             content,
             StandardCharsets.UTF_8,
-            StandardOpenOption.CREATE_NEW,
+            StandardOpenOption.CREATE,
+            StandardOpenOption.TRUNCATE_EXISTING,
             StandardOpenOption.WRITE
           )
         }

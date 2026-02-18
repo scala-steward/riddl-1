@@ -93,6 +93,7 @@ class TestVisitor extends PassVisitor:
   def openOutput(output: Output, parents: Parents): Unit = incr(output)
   def openInput(input: Input, parents: Parents): Unit = incr(input)
   def openInclude(include: Include[?], parents: Parents): Unit = incr(include)
+  def openBASTImport(bi: BASTImport, parents: Parents): Unit = incr(bi)
 
   // Close for each type of container definition
   def closeType(typ: Type, parents: Parents): Unit = decr(typ)
@@ -113,6 +114,7 @@ class TestVisitor extends PassVisitor:
   def closeOutput(output: Output, parents: Parents): Unit = decr(output)
   def closeInput(input: Input, parents: Parents): Unit = decr(input)
   def closeInclude(include: Include[?], parents: Parents): Unit = decr(include)
+  def closeBASTImport(bi: BASTImport, parents: Parents): Unit = decr(bi)
 
   // LeafDefinitions
   def doField(field: Field): Unit = leaf(field)

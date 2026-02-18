@@ -30,7 +30,8 @@ class PrettifyCommandTest extends RunCommandSpecBase {
       val expected = PrettifyCommand.Options(
         inputFile = Some(Path.of("nada.riddl")),
         outputDir = Some(Path.of("commands/target/prettify/")),
-        projectName = Some("Nada")
+        projectName = Some("Nada"),
+        singleFile = true
       )
       cmd.loadOptionsFrom(conf) match {
         case Left(errors) => fail(errors.format)

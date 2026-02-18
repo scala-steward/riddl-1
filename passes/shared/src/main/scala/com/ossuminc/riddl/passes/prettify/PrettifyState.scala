@@ -6,12 +6,19 @@
 
 package com.ossuminc.riddl.passes.prettify
 
+import com.ossuminc.riddl.language.AST.BASTImport
 import com.ossuminc.riddl.utils.{PlatformContext, URL}
 
 import scala.collection.mutable
 import scala.scalajs.js.annotation.JSExport
 
-case class PrettifyState(flatten: Boolean = false, topFile: String = "nada", outDir: String = "nada")(using PlatformContext):
+case class PrettifyState(flatten: Boolean = false, topFile: String = "prettify-output.riddl", outDir: String = ".")(using PlatformContext):
+
+  // Strip leading/trailing '/' from outDir for URL basis field, which
+  // already gets '/' separators in URL format (scheme://authority/basis/path)
+  private val normalizedOutDir: String =
+    val stripped = if outDir.startsWith("/") then outDir.drop(1) else outDir
+    if stripped.endsWith("/") then stripped.dropRight(1) else stripped
 
   def filesAsString: String = {
     closeStack()
@@ -33,7 +40,7 @@ case class PrettifyState(flatten: Boolean = false, topFile: String = "nada", out
   }
 
   def toDestination(url: URL): URL = {
-    URL(url.scheme, url.authority, outDir, url.path)
+    URL(url.scheme, url.authority, normalizedOutDir, url.path)
   }
   def numFiles: Int = files.length
 
@@ -45,6 +52,11 @@ case class PrettifyState(flatten: Boolean = false, topFile: String = "nada", out
 
   private val fileStack: mutable.Stack[RiddlFileEmitter] = mutable.Stack
     .empty[RiddlFileEmitter]
+
+  private val bastImports: mutable.ListBuffer[BASTImport] = mutable.ListBuffer.empty
+
+  def addBASTImport(bi: BASTImport): Unit = bastImports.append(bi)
+  def getBastImports: Seq[BASTImport] = bastImports.toSeq
 
   private def closeStack(): Unit = { while fileStack.nonEmpty do popFile() }
 
