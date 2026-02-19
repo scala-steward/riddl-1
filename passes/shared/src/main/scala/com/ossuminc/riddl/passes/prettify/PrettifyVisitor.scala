@@ -37,7 +37,9 @@ class PrettifyVisitor(options: PrettifyPass.Options)(using PlatformContext) exte
   def closeType(typ: Type, parents: Parents): Unit =
     state.withCurrent { rfe =>
       if typ.metadata.isEmpty then rfe.nl
-      else rfe.emitMetaData(typ.metadata)
+      else
+        rfe.trimTrailingNewline()
+        rfe.emitMetaData(typ.metadata)
     }
 
   def openDomain(domain: Domain, parents: Parents): Unit = open(domain)
@@ -414,7 +416,7 @@ class PrettifyVisitor(options: PrettifyPass.Options)(using PlatformContext) exte
     state.withCurrent { (rfe: RiddlFileEmitter) =>
       if !state.flatten then
         val url = include.origin
-        rfe.addLine(s"""include "${url.toExternalForm}"""")
+        rfe.addLine(s"""include "${url.path}"""")
         val outputURL = state.toDestination(url)
         val newRFE = RiddlFileEmitter(outputURL)
         state.pushFile(newRFE)

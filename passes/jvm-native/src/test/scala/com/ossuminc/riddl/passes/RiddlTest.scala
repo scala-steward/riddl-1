@@ -170,6 +170,44 @@ class RiddlTest extends AbstractTestingBasis {
           indexIndent must be > ofIndent
     }
 
+    "not insert commas between aggregate fields" in {
+      val input =
+        """domain foo is {
+          |  context bar is {
+          |    record Baz is {
+          |      x: String
+          |      y: Integer
+          |    }
+          |  }
+          |}""".stripMargin
+      val rpi = RiddlParserInput(input, "")
+      Riddl.parse(rpi) match
+        case Left(messages) => fail(messages.format)
+        case Right(root) =>
+          val output = Riddl.toRiddlText(root)
+          output must not include ","
+    }
+
+    "keep } with { on same line for types" in {
+      val input =
+        """domain foo is {
+          |  context bar is {
+          |    record Baz is {
+          |      x: String
+          |    } with {
+          |      briefly "A record"
+          |    }
+          |  }
+          |}""".stripMargin
+      val rpi = RiddlParserInput(input, "")
+      Riddl.parse(rpi) match
+        case Left(messages) => fail(messages.format)
+        case Right(root) =>
+          val output = Riddl.toRiddlText(root)
+          output must include ("} with {")
+          output must not include ("}\n with {")
+    }
+
     "preserve include structure in multi-file mode" in {
       val includePath = "language/input/includes/domainIncludes.riddl"
       val includeUrl = PathUtils.urlFromCwdPath(Path.of(includePath))
@@ -191,6 +229,7 @@ class RiddlTest extends AbstractTestingBasis {
             // The main file should contain an include directive
             val mainContent = state.filesAsString
             mainContent must include("include")
+            mainContent must not include "file://"
       }
       Await.result(future, 10.seconds)
     }

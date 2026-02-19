@@ -134,6 +134,13 @@ case class RiddlFileEmitter(url: URL)(using PlatformContext) extends FileBuilder
   private def emitULIDAttachment(a: ULIDAttachment): this.type =
     addIndent("attachment " + a.id.format).add(s" is \"${a.ulid.toString}\"")
 
+  def trimTrailingNewline(): this.type =
+    if sb.length >= new_line.length &&
+       sb.substring(sb.length - new_line.length) == new_line
+    then sb.setLength(sb.length - new_line.length)
+    this
+  end trimTrailingNewline
+
   def emitString(s: String_): this.type = {
     (s.min, s.max) match {
       case (Some(n), Some(x)) => this.add(s"String($n,$x)")
@@ -200,18 +207,9 @@ case class RiddlFileEmitter(url: URL)(using PlatformContext) extends FileBuilder
             .nl
       case Some(_) =>
         this.add("{").nl.incr
-        val lastIdx = of.size - 1
-        of.zipWithIndex.foreach { case (f, idx) =>
+        of.foreach { f =>
           add(spc).emitField(f)
-          if idx < lastIdx then
-            if f.metadata.nonEmpty then
-              // metadata ended with }\n; insert comma before trailing newline
-              sb.insert(sb.length - new_line.length, ",")
-            else
-              add(",").nl
-          else
-            // last field — no comma
-            if f.metadata.isEmpty then nl
+          if f.metadata.isEmpty then nl
         }
         decr.addIndent("}").nl
     }
