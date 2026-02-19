@@ -6,27 +6,38 @@ This is the central engineering notebook for the RIDDL project. It tracks curren
 
 ## Current Status
 
-**Last Updated**: February 18, 2026
+**Last Updated**: February 19, 2026
+
+### Release 1.12.1 Published (Feb 19, 2026)
+
+Patch release fixing three prettify formatting regressions
+found after 1.12.0 when testing against riddl-models:
+
+1. **Commas between aggregate fields** — `emitFields()` was
+   inserting commas between fields. RIDDL grammar makes commas
+   optional and original models don't use them. Removed all
+   comma insertion logic.
+
+2. **`} with {` on separate lines for types** — When a type
+   had metadata, `emitFields` ended with `}\n` and then
+   `closeType` called `emitMetaData` starting with ` with {`,
+   putting them on separate lines. Added
+   `trimTrailingNewline()` to `RiddlFileEmitter` and call it
+   in `closeType` before `emitMetaData`.
+
+3. **Absolute include paths** — `openInclude` used
+   `url.toExternalForm` producing `file:///Users/...` URLs.
+   Changed to `url.path` which preserves the relative path.
+
+Three regression tests added. All 277 passes tests pass.
+Published to GitHub Packages (JVM, JS, Native). Release
+artifacts triggered via CI.
 
 ### Release 1.12.0 Published (Feb 18, 2026)
 
 Minor release fixing prettify to retain multi-file include/
 import structure. Previously `riddlc prettify` always produced
 a single flattened file regardless of `--single-file` flag.
-
-Key changes:
-- `singleFile` default changed from `true` to `false`
-- `PrettifyPass.Options` expanded with `topFile`/`outputDir`
-- `PrettifyState` URL normalization for absolute output paths
-- BASTImport added to HierarchyPass/PassVisitor/VisitingPass
-- Include quote bug fixed in PrettifyVisitor
-- `writeOutput` uses output dir consistently, `TRUNCATE_EXISTING`
-- Two regression tests added (multi-file + flatten modes)
-- Stale Hugo submodule references removed (`.gitmodules`)
-
-All tests pass. Published to GitHub Packages (JVM, JS, Native).
-Release artifacts (native binaries, npm) generated via CI.
-Docker image build was cancelled (timed out).
 
 ### Release 1.11.1 Published (Feb 17, 2026)
 

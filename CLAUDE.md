@@ -829,9 +829,8 @@ Then add to root aggregation: `.aggregate(..., mymodule, mymoduleJS, mymoduleNat
     ARM64. Removing `inline` fixes it; the compiler optimizes
     trivial delegations anyway. Filed as
     https://github.com/scala/scala3/issues/25306
-66. **Current release is 1.12.0** — Minor release with
-    prettify multi-file structure preservation fix. Supersedes
-    1.11.1
+66. **Current release is 1.12.1** — Patch release fixing
+    prettify formatting regressions. Supersedes 1.12.0
 67. **PrettifyPass multi-file mode** — `PrettifyPass.Options`
     now carries `topFile`, `outputDir`, and `flatten`. When
     `flatten=false` (the new default), prettify preserves
@@ -853,3 +852,18 @@ Then add to root aggregation: `.aggregate(..., mymodule, mymoduleJS, mymoduleNat
     (hugo-theme-learn, redislabs-docs, hugo-theme-docdock)
     were causing warnings on `git pull`. No submodule paths
     were tracked in the tree; only `.gitmodules` remained
+71. **Current release is 1.12.1** — Patch release fixing three
+    prettify formatting regressions from 1.12.0: removed
+    commas between aggregate fields, kept `} with {` on same
+    line for types with metadata, preserved relative include
+    paths. Supersedes 1.12.0
+72. **RiddlFileEmitter.trimTrailingNewline()** — Removes a
+    trailing newline from the StringBuilder. Used in
+    `closeType` to join `}` from `emitFields` with ` with {`
+    from `emitMetaData` on the same line. May be needed in
+    other close methods if similar patterns arise
+73. **Include paths use url.path** — `openInclude` in
+    `PrettifyVisitor` uses `url.path` (relative filename)
+    instead of `url.toExternalForm` (absolute `file:///`
+    URL). This preserves the original include path as written
+    in the source model
