@@ -111,7 +111,7 @@ class UnbastifyCommand(using pc: PlatformContext) extends Command[UnbastifyComma
         val passInput = PassInput(nebula)
         // BAST stores all content inline (includes are resolved), so
         // flatten output to produce a single self-contained .riddl file
-        val prettifyOptions = PrettifyPass.Options(flatten = true)
+        val prettifyOptions = PrettifyPass.Options(flatten = true, inputDir = "")
 
         // Create the pass and run it using Pass.runThesePasses
         val passes: PassCreators = Seq(

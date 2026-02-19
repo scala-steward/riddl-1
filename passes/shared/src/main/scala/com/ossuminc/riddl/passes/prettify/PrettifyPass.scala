@@ -20,14 +20,15 @@ import scala.scalajs.js.annotation.JSExportTopLevel
 @JSExportTopLevel("PrettifyPass$")
 object PrettifyPass extends PassInfo[PrettifyPass.Options]:
   val name: String = "prettify"
-  def creator(options: PrettifyPass.Options = PrettifyPass.Options())(using PlatformContext) =
+  def creator(options: PrettifyPass.Options)(using PlatformContext) =
     (in: PassInput, out: PassesOutput) => PrettifyPass(in, out, options)
   end creator
 
   case class Options(
     flatten: Boolean = false,
     topFile: String = "",
-    outputDir: String = ""
+    outputDir: String = "",
+    inputDir: String
   ) extends PassOptions
 end PrettifyPass
 

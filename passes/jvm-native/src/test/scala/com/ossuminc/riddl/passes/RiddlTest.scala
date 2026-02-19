@@ -218,7 +218,7 @@ class RiddlTest extends AbstractTestingBasis {
           case Right(root) =>
             val input = PassInput(root)
             val outputs = PassesOutput()
-            val options = PrettifyPass.Options(flatten = false)
+            val options = PrettifyPass.Options(flatten = false, inputDir = "language/input/includes")
             val result = Pass.runPass[PrettifyOutput](
               input, outputs,
               PrettifyPass(input, outputs, options)
@@ -244,7 +244,7 @@ class RiddlTest extends AbstractTestingBasis {
           case Right(root) =>
             val input = PassInput(root)
             val outputs = PassesOutput()
-            val options = PrettifyPass.Options(flatten = true)
+            val options = PrettifyPass.Options(flatten = true, inputDir = "")
             val result = Pass.runPass[PrettifyOutput](
               input, outputs,
               PrettifyPass(input, outputs, options)

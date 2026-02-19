@@ -28,7 +28,7 @@ abstract class PrettifyPassTest extends RiddlFilesTestBase {
   def runPrettify(source: RiddlParserInput, run: String): String = {
     val passes = standardPasses ++ Seq(
       { (input: PassInput, outputs: PassesOutput) =>
-        val options = PrettifyPass.Options(flatten = true)
+        val options = PrettifyPass.Options(flatten = true, inputDir = "")
         PrettifyPass(input, outputs, options)
       }
     )
@@ -94,7 +94,7 @@ abstract class PrettifyPassTest extends RiddlFilesTestBase {
 
   "PrettifyOutput" must {
     "construct" in { _ =>
-      val ps = PrettifyState(flatten = true)
+      val ps = PrettifyState(flatten = true, inputDir = "")
       ps.numFiles must be(1)
       val po = PrettifyOutput(Root.empty, Messages.empty, ps)
       po.messages must be(empty)

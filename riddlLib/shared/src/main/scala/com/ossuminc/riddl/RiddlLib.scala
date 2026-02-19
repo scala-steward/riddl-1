@@ -531,7 +531,7 @@ object RiddlLib extends RiddlLib:
     val passInput = PassInput(root)
     val passes = Seq(
       PrettifyPass.creator(
-        PrettifyPass.Options(flatten = true)
+        PrettifyPass.Options(flatten = true, inputDir = "")
       )
     )
     val result = Pass.runThesePasses(passInput, passes)

@@ -97,12 +97,16 @@ class PrettifyCommand(using pc: PlatformContext)
       .map(_.getFileName.toString).getOrElse("")
     val outDir = options.outputDir
       .map(_.toString).getOrElse("")
+    val inDir = options.inputFile
+      .flatMap(p => Option(p.getParent))
+      .map(_.toString).getOrElse("")
     standardPasses ++ Seq(
       { (input: PassInput, outputs: PassesOutput) =>
         PrettifyPass(input, outputs, PrettifyPass.Options(
           flatten = options.singleFile,
           topFile = topFile,
-          outputDir = outDir
+          outputDir = outDir,
+          inputDir = inDir
         ))
       }
     )

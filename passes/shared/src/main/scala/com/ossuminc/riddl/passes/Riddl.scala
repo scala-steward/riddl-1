@@ -143,7 +143,7 @@ object Riddl {
     val result = Pass.runPass[PrettifyOutput](
       input,
       outputs,
-      PrettifyPass(input, outputs, PrettifyPass.Options(flatten = true))
+      PrettifyPass(input, outputs, PrettifyPass.Options(flatten = true, inputDir = ""))
     )
     result.state.filesAsString
   end toRiddlText

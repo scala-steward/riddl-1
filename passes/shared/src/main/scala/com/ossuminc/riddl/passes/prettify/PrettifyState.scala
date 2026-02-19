@@ -12,13 +12,21 @@ import com.ossuminc.riddl.utils.{PlatformContext, URL}
 import scala.collection.mutable
 import scala.scalajs.js.annotation.JSExport
 
-case class PrettifyState(flatten: Boolean = false, topFile: String = "prettify-output.riddl", outDir: String = ".")(using PlatformContext):
+case class PrettifyState(flatten: Boolean = false, topFile: String = "prettify-output.riddl", outDir: String = ".", inputDir: String)(using PlatformContext):
 
   // Strip leading/trailing '/' from outDir for URL basis field, which
   // already gets '/' separators in URL format (scheme://authority/basis/path)
   private val normalizedOutDir: String =
     val stripped = if outDir.startsWith("/") then outDir.drop(1) else outDir
     if stripped.endsWith("/") then stripped.dropRight(1) else stripped
+
+  // Prefix to strip from include paths so output files are relative
+  // to the main input file's directory, not to CWD
+  private val inputDirPrefix: String =
+    if inputDir.isEmpty then ""
+    else
+      val normalized = inputDir.replace('\\', '/')
+      if normalized.endsWith("/") then normalized else normalized + "/"
 
   def filesAsString: String = {
     closeStack()
@@ -40,7 +48,11 @@ case class PrettifyState(flatten: Boolean = false, topFile: String = "prettify-o
   }
 
   def toDestination(url: URL): URL = {
-    URL(url.scheme, url.authority, normalizedOutDir, url.path)
+    val relativePath =
+      if inputDirPrefix.nonEmpty && url.path.startsWith(inputDirPrefix) then
+        url.path.drop(inputDirPrefix.length)
+      else url.path
+    URL(url.scheme, url.authority, normalizedOutDir, relativePath)
   }
   def numFiles: Int = files.length
 

@@ -20,7 +20,8 @@ class PrettifyVisitor(options: PrettifyPass.Options)(using PlatformContext) exte
     if options.topFile.nonEmpty then options.topFile
     else "prettify-output.riddl",
     if options.outputDir.nonEmpty then options.outputDir
-    else "."
+    else ".",
+    options.inputDir
   )
 
   def result: PrettifyState = state
