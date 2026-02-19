@@ -31,3 +31,4 @@ language/input/everything.bast
 !.claude/skills/
 language/jvm/src/test/python/.venv/
 __pycache__/
+/task/
