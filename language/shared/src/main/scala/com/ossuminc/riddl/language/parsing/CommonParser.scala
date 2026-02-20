@@ -259,7 +259,7 @@ private[parsing] trait CommonParser(using pc: PlatformContext)
     P(
       Index ~ Keywords.option ~/ is.? ~ CharsWhile(ch =>
         ch.isLower | ch.isDigit | ch == '_' | ch == '-'
-      ).! ~
+       ).! ~
         (Punctuation.roundOpen ~ literalString.rep(
           0,
           Punctuation.comma

@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2026 Ossum, Inc.
+ * Copyright 2019-2026 Ossum Inc.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -23,12 +23,12 @@ class BuildInfoTest extends AbstractTestingBasis {
       RiddlBuildInfo.moduleName must be("riddl-utils")
       RiddlBuildInfo.description must be("Various utilities used throughout riddl libraries")
       RiddlBuildInfo.organization must include("com.ossuminc")
-      RiddlBuildInfo.organizationName must be("Ossum, Inc.")
+      RiddlBuildInfo.organizationName must be("Ossum Inc.")
       RiddlBuildInfo.gitHubOrganization must be("ossuminc")
       RiddlBuildInfo.gitHubRepository must be("riddl")
       RiddlBuildInfo.buildInfoPackage must be("com.ossuminc.riddl.utils")
       RiddlBuildInfo.buildInfoObject must be("RiddlBuildInfo")
-      RiddlBuildInfo.copyrightHolder must be("Ossum, Inc.")
+      RiddlBuildInfo.copyrightHolder must be("Ossum Inc.")
       RiddlBuildInfo.organizationHomepage must be("https://ossuminc.com/")
       RiddlBuildInfo.projectHomepage must be("https://github.com/ossuminc/riddl")
       RiddlBuildInfo.licenses must be("Apache-2.0")

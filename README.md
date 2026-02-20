@@ -89,7 +89,7 @@ Please refer to the CONTRIBUTING.md file for more details about the workflow
 and general hints on preparing your pull request. You can also ask for
 clarifications or guidance on GitHub issues directly.
 
-The RIDDL family of repositories is owned by Ossum, Inc., and they require
+The RIDDL family of repositories is owned by Ossum Inc., and they require
 the use of a 
 [CLA (Contributor License Agreement)](https://cla-assistant.io/ossuminc/riddl).
 You can sign at that link or be prompted to do so when you submit your first

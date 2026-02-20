@@ -97,3 +97,4 @@ case class OutlinePass(
     OutlineOutput(root, Messages.empty, buffer.toSeq)
   }
 }
+
