@@ -243,12 +243,22 @@ object RiddlSbtPlugin extends AutoPlugin {
     } else { true }
   }
 
+  // Pattern to strip ANSI escape sequences from output
+  private[plugin] val AnsiPattern: Regex =
+    "\u001b\\[[0-9;]*m".r
+
   private[plugin] def checkVersion(
     binary: File,
     minimumVersion: String
   ): Unit = {
-    val check = binary.getAbsolutePath + " version"
-    val actualVersion = check.!!<.trim
+    val check = Seq(
+      binary.getAbsolutePath,
+      "--no-ansi-messages", "version"
+    )
+    val raw = check.!!<.trim
+    // Strip any residual ANSI codes and [info] prefix
+    val actualVersion = AnsiPattern.replaceAllIn(raw, "")
+      .replaceAll("(?i)\\[info]\\s*", "").trim
     val minVersion = minimumVersion.trim
     if (!versionSameOrLater(actualVersion, minVersion)) {
       throw new IllegalArgumentException(
@@ -510,7 +520,17 @@ object RiddlSbtPlugin extends AutoPlugin {
         batchConfOperation(
           binary, srcDir, confs, options, "validate", log
         ) { conf =>
-          Seq("from", conf.getAbsolutePath, "validate")
+          extractInputFile(conf) match {
+            case Some(inputFile) =>
+              val riddlFile =
+                conf.getParentFile / inputFile
+              Seq("validate", riddlFile.getAbsolutePath)
+            case None =>
+              sys.error(
+                "Could not extract input-file from " +
+                conf.getAbsolutePath
+              )
+          }
         }
       }
     },
@@ -530,7 +550,17 @@ object RiddlSbtPlugin extends AutoPlugin {
         batchConfOperation(
           binary, srcDir, confs, options, "parse", log
         ) { conf =>
-          Seq("from", conf.getAbsolutePath, "parse")
+          extractInputFile(conf) match {
+            case Some(inputFile) =>
+              val riddlFile =
+                conf.getParentFile / inputFile
+              Seq("parse", riddlFile.getAbsolutePath)
+            case None =>
+              sys.error(
+                "Could not extract input-file from " +
+                conf.getAbsolutePath
+              )
+          }
         }
       }
     },
