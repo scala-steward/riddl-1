@@ -29,6 +29,7 @@ target
 language/input/everything.bast
 .claude/*
 !.claude/skills/
+!.claude/skills/**
 language/jvm/src/test/python/.venv/
 __pycache__/
 /task/
