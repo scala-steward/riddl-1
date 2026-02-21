@@ -106,6 +106,15 @@ not provided:
     ```
 
 13. Run `git status` to confirm the working tree is clean.
+    **Known issue:** The `sbt clean` step in the build may
+    trigger sbt-ossuminc's copyright header formatter, which
+    updates files that still have stale headers (e.g.,
+    `"Ossum, Inc."` → `"Ossum Inc."`). If `git status` shows
+    modified files that are only copyright header changes:
+    - Commit them: `git add -u && git commit -m "Fix copyright headers"`
+    - Push: `git push origin main`
+    These changes are harmless formatting fixes and should be
+    committed before merging back to `development`.
 
 14. Switch back to `development` and merge the tag forward:
     ```
