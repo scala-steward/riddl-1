@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2026 Ossum, Inc.
+ * Copyright 2019-2026 Ossum Inc.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,213 +7,632 @@
 package com.ossuminc.riddl.sbt.plugin
 
 import com.ossuminc.riddl.sbt.SbtRiddlPluginBuildInfo
-import sbt.*
-import sbt.Keys.*
+import sbt._
+import sbt.Keys._
 import sbt.plugins.JvmPlugin
 
 import java.io.File
-import java.nio.file.{Files, Path}
-import scala.sys.process.*
+import scala.sys.process._
+import scala.util.matching.Regex
 
-/** A plugin that endows sbt with knowledge of code generation via riddl */
+/** An sbt plugin that provides riddlc commands with
+  * auto-acquisition from GitHub releases, batch operations
+  * over multiple .conf files, and pre-compile validation.
+  */
 object RiddlSbtPlugin extends AutoPlugin {
   override def requires: AutoPlugin = JvmPlugin
 
   object autoImport {
 
-    lazy val riddlcPath = settingKey[Option[File]]("Optional path to riddlc").withRank(KeyRanks.Invisible)
+    // --- Binary resolution ---
 
-    lazy val riddlcConf = settingKey[File]("Path to the config file").withRank(KeyRanks.Invisible)
+    val riddlcPath = settingKey[Option[File]](
+      "Explicit path to riddlc binary (overrides download)"
+    )
+    val riddlcVersion = settingKey[String](
+      "Version of riddlc to download from GitHub releases"
+    )
+    val riddlcCacheDir = settingKey[File](
+      "Cache directory for downloaded riddlc binaries"
+    )
+    val riddlcMinVersion = settingKey[String](
+      "Minimum required riddlc version"
+    )
+    val riddlcOptions = settingKey[Seq[String]](
+      "Global options to pass to riddlc"
+    )
 
-    lazy val riddlcOptions = settingKey[Seq[String]]("Options to pass to riddlc").withRank(KeyRanks.Invisible)
+    // --- Source configuration ---
 
-    lazy val riddlcMinVersion = {
-      settingKey[String]("Ensure the riddlc used is at least this version")
+    val riddlcConf = settingKey[File](
+      "Path to primary riddlc config file (single-conf mode)"
+    )
+    val riddlcSourceDir = settingKey[File](
+      "Base directory for RIDDL .conf file scanning"
+    )
+    val riddlcConfExclusions = settingKey[Seq[String]](
+      "Directory names to exclude from .conf scanning"
+    )
+    val riddlcValidateOnCompile = settingKey[Boolean](
+      "Run riddlc validation during compile"
+    )
+
+    // --- Tasks ---
+
+    val riddlcDownload = taskKey[File](
+      "Download and cache riddlc from GitHub releases"
+    )
+    val riddlcBinary = taskKey[File](
+      "Resolve riddlc binary (explicit, download, or PATH)"
+    )
+    val riddlcValidate = taskKey[Unit](
+      "Validate RIDDL models"
+    )
+    val riddlcParse = taskKey[Unit](
+      "Parse RIDDL models without validation"
+    )
+    val riddlcBastify = taskKey[Unit](
+      "Generate .bast files from RIDDL models"
+    )
+    val riddlcPrettify = taskKey[Unit](
+      "Reformat RIDDL source files"
+    )
+    val riddlcInfo = taskKey[Unit](
+      "Display riddlc build information"
+    )
+    val riddlcShowVersion = taskKey[Unit](
+      "Display riddlc version string"
+    )
+
+    /** Curried configuration function for convenient plugin
+      * setup. Use with `.configure(riddlc())` on a Project.
+      */
+    def riddlc(
+      version: String = SbtRiddlPluginBuildInfo.version,
+      sourceDir: String = "src/main/riddl",
+      validateOnCompile: Boolean = true,
+      confExclusions: Seq[String] = Seq("patterns"),
+      options: Seq[String] = Seq("--show-times")
+    )(project: Project): Project = {
+      project.settings(
+        riddlcVersion := version,
+        riddlcSourceDir := baseDirectory.value / sourceDir,
+        riddlcValidateOnCompile := validateOnCompile,
+        riddlcConfExclusions := confExclusions,
+        riddlcOptions := options
+      )
     }
-
-    lazy val findRiddlcTask = taskKey[Option[File]]("Find the riddlc program locally")
   }
 
-  import autoImport.*
+  import autoImport._
 
-  private object V {
-    val scala = "3.4.2" // NOTE: Synchronize with sbt-ossuminc scala version
+  // --- Input file extraction ---
+  // Note: Methods are private[plugin] rather than private so
+  // that the Scala 2.12 compiler can see usage through sbt
+  // macro-generated task bodies.
+
+  private[plugin] val InputFilePattern: Regex =
+    """input-file\s*=\s*"([^"]+)"""".r
+
+  private[plugin] def extractInputFile(
+    conf: File
+  ): Option[String] = {
+    val content = IO.read(conf)
+    InputFilePattern.findFirstMatchIn(content).map(_.group(1))
   }
 
-  /*private def getLogger(project: Extracted, state: State): ManagedLogger = {
-    val (_, strms) = project.runTask(, state)
-    project.structure.streams(state).log
-    strms.log
-  }*/
+  // --- Platform detection & download ---
 
-  private val riddlc_partial_path: String =
-    Path.of("riddl", "riddlc", "target", "universal", "stage", "bin", "riddlc").toString
-
-  private def findRiddlcPathInPATH: Option[Path] = {
-    val user_path = sys.env("PATH")
-    val parts = user_path.split(File.pathSeparatorChar)
-    val viable_paths = parts.filter {
-      part: String =>
-        part.endsWith("bin") && Files.isExecutable(java.nio.file.Path.of(part, "/riddlc"))
+  private[plugin] def platformAssetName: String = {
+    val osName = sys.props.getOrElse("os.name", "").toLowerCase
+    val osArch = sys.props.getOrElse("os.arch", "").toLowerCase
+    if (osName.contains("mac") &&
+        (osArch.contains("aarch64") ||
+         osArch.contains("arm64"))) {
+      "riddlc-macos-arm64.zip"
+    } else if (osName.contains("linux") &&
+               (osArch.contains("amd64") ||
+                osArch.contains("x86_64"))) {
+      "riddlc-linux-x86_64.zip"
+    } else {
+      "riddlc.zip" // JVM universal fallback
     }
-    viable_paths.headOption match {
-      case Some(path) =>
-        Some(Path.of(path))
+  }
+
+  private[plugin] def downloadRiddlc(
+    cacheDir: File,
+    version: String,
+    log: Logger
+  ): File = {
+    val versionDir = cacheDir / version
+    val binary = versionDir / "bin" / "riddlc"
+
+    if (!binary.exists()) {
+      val assetName = platformAssetName
+      log.info(
+        s"Downloading riddlc $version ($assetName)..."
+      )
+      IO.createDirectory(versionDir)
+      val zipFile = versionDir / assetName
+      val url =
+        "https://github.com/ossuminc/riddl/releases/" +
+        s"download/$version/$assetName"
+      Process(Seq(
+        "curl", "-fSL", "-o",
+        zipFile.getAbsolutePath, url
+      )).!!
+      IO.unzip(zipFile, versionDir)
+      binary.setExecutable(true)
+      IO.delete(zipFile)
+      log.info(
+        s"riddlc $version cached at " +
+        binary.getAbsolutePath
+      )
+    } else {
+      log.debug(
+        s"Using cached riddlc $version at " +
+        binary.getAbsolutePath
+      )
+    }
+
+    binary
+  }
+
+  // --- PATH lookup ---
+
+  private[plugin] def findOnPath: Option[File] = {
+    // Check RIDDLC_PATH env var first
+    Option(System.getenv("RIDDLC_PATH")).flatMap { p =>
+      val f = new File(p)
+      if (f.exists() && f.canExecute) Some(f) else None
+    }.orElse {
+      // Search PATH for riddlc
+      val pathDirs = sys.env.getOrElse("PATH", "").split(
+        File.pathSeparatorChar
+      )
+      pathDirs.iterator.map { dir =>
+        new File(dir, "riddlc")
+      }.find { f =>
+        f.exists() && f.canExecute
+      }
+    }
+  }
+
+  private[plugin] def findOnPathOrFail(log: Logger): File = {
+    findOnPath match {
+      case Some(f) => f
       case None =>
-        None
+        sys.error(
+          "riddlc not found. Set riddlcVersion to enable " +
+          "auto-download, set riddlcPath to an explicit " +
+          "binary, or install riddlc on your PATH."
+        )
     }
   }
 
-  override def projectSettings: Seq[Setting[_]] = Seq(
-    // Global / excludeLintKeys ++= Seq(riddlcConf, riddlcOptions),
-    scalaVersion := V.scala,
-    Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.ScalaLibrary,
-    riddlcPath := None,
-    riddlcOptions := Seq("--show-times"),
-    riddlcConf := file("src/main/riddl/riddlc.conf"),
-    riddlcMinVersion := SbtRiddlPluginBuildInfo.version,
-    findRiddlcTask := {
-      val found: Option[Path] = riddlcPath.value match {
-        case Some(path) =>
-          if (path.getAbsolutePath.endsWith("riddlc")) {
-            Some(path.toPath)
-          } else {
-            throw new IllegalStateException(
-              s"Your riddlcPath setting is not the full path to the riddlc program: $path"
-            )
-          }
-        case None =>
-          Option(System.getenv("RIDDLC_PATH")) match {
-            case None => findRiddlcPathInPATH
-            case Some(path) =>
-              if (path.endsWith(riddlc_partial_path)) {
-                Some(Path.of(path))
-              } else {
-                findRiddlcPathInPATH
-              }
-          }
-      }
-      found match {
-        case Some(path) =>
-          if (!Files.isExecutable(path)) {
-            sLog.value.log(Level.Warn, s"The RIDDLC found at $path is not executable")
-          }
-          Some(path.toFile)
-        case None =>
-          sLog.value.log(Level.Error, s"Could not find riddlc in RIDDLC_PATH(${sys.env("RIDDLC_PATH")}) or PATH ")
-          Option.empty[File]
-      }
-    },
-    commands ++= Seq(riddlcCommand, infoCommand, hugoCommand, validateCommand, statsCommand)
-  )
+  // --- Version checking ---
 
-  private def runRiddlcAction(state: State, args: Seq[String]): State = {
-    val project = Project.extract(state)
-    val riddlcPath = project.runTask(findRiddlcTask, state)
-    val minimumVersion: String = project.get(riddlcMinVersion)
-    val options: Seq[String] = project.get(riddlcOptions)
-    Def.task[Int] {
-      val streams: TaskStreams = project.get(Keys.streams).value
-      runRiddlc(streams, riddlcPath._2, minimumVersion, options, args)
-    }
-    state
-  }
-
-  // Allow riddlc to be run from inside an sbt shell
-  private def riddlcCommand: Command = {
-    Command.args(
-      name = "riddlc",
-      display = "<options> <command> <args...> ; `riddlc help` for details"
-    ) { (state: State, args: Seq[String]) =>
-      runRiddlcAction(state, args)
-    }
-  }
-
-  private def infoCommand: Command = {
-    Command.command("info") { (state: State) =>
-      runRiddlcAction(state, Seq("info"))
-    }
-  }
-
-  private def hugoCommand: Command = {
-    Command.command("hugo") { (state: State) =>
-      val project = Project.extract(state)
-      val conf = project.get(riddlcConf).getAbsoluteFile.toString
-      runRiddlcAction(state, Seq("from", conf, "hugo"))
-    }
-  }
-
-  private def validateCommand: Command = {
-    Command.command("validate") { (state: State) =>
-      val project = Project.extract(state)
-      val conf = project.get(riddlcConf).getAbsoluteFile.toString
-      runRiddlcAction(state, Seq("from", conf, "validate"))
-    }
-  }
-
-  private def statsCommand: Command = {
-    Command.command("stats") { (state: State) =>
-      val project = Project.extract(state)
-      val conf = project.get(riddlcConf).getAbsoluteFile.toString
-      runRiddlcAction(state, Seq("from", conf, "stats"))
-    }
-  }
-
-  private def versionTriple(version: String): (Int, Int, Int) = {
+  private[plugin] def versionTriple(
+    version: String
+  ): (Int, Int, Int) = {
     val trimmed = version.indexOf('-') match {
       case x: Int if x < 0 => version
-      case y: Int          => version.take(y)
+      case y: Int           => version.take(y)
     }
     val parts = trimmed.split('.')
     if (parts.length < 3) {
       throw new IllegalArgumentException(
-        s"riddlc version ($version) has insufficient semantic versioning parts."
+        s"riddlc version ($version) has insufficient " +
+        "semantic versioning parts."
       )
-    } else { (parts(0).toInt, parts(1).toInt, parts(2).toInt) }
+    } else {
+      (parts(0).toInt, parts(1).toInt, parts(2).toInt)
+    }
   }
 
-  private def versionSameOrLater(actualVersion: String, minVersion: String): Boolean = {
+  private[plugin] def versionSameOrLater(
+    actualVersion: String,
+    minVersion: String
+  ): Boolean = {
     if (actualVersion != minVersion) {
       val (aJ, aN, aP) = versionTriple(actualVersion)
       val (mJ, mN, mP) = versionTriple(minVersion)
-      aJ > mJ || ((aJ == mJ) && ((aN > mN) || ((aN == mN) && (aP >= mP))))
+      aJ > mJ ||
+        ((aJ == mJ) &&
+         ((aN > mN) || ((aN == mN) && (aP >= mP))))
     } else { true }
   }
 
-  private def checkVersion(
-    riddlcPath: File,
+  private[plugin] def checkVersion(
+    binary: File,
     minimumVersion: String
   ): Unit = {
-    import scala.sys.process.*
-    val check = riddlcPath.getAbsolutePath + " version"
+    val check = binary.getAbsolutePath + " version"
     val actualVersion = check.!!<.trim
     val minVersion = minimumVersion.trim
     if (!versionSameOrLater(actualVersion, minVersion)) {
       throw new IllegalArgumentException(
-        s"riddlc version $actualVersion is below minimum required: $minVersion"
+        s"riddlc version $actualVersion is below minimum " +
+        s"required: $minVersion"
       )
-    } // else { println(s"riddlc version = $actualVersion") }
-  }
-
-  private def runRiddlc(
-    streams: TaskStreams,
-    riddlcPath: Option[File],
-    minimumVersion: String,
-    options: Seq[String],
-    args: Seq[String]
-  ): Int = {
-    riddlcPath match {
-      case None =>
-        streams.log.info("riddlc not found")
-        -1
-      case Some(riddlc_path) =>
-        checkVersion(riddlc_path, minimumVersion)
-        streams.log.info(s"Running: riddlc ${args.mkString(" ")}\n")
-        val logger = ProcessLogger { str =>
-          println(str); streams.log(str); ()
-        }
-        val process = Process(riddlc_path.getAbsolutePath, options ++ args)
-        process.!(logger)
     }
   }
+
+  // --- Conf file discovery ---
+
+  private[plugin] def findConfFiles(
+    srcDir: File,
+    exclusions: Seq[String]
+  ): Seq[File] = {
+    if (!srcDir.exists()) {
+      Seq.empty
+    } else {
+      var finder: PathFinder = srcDir ** "*.conf"
+      for (ex <- exclusions) {
+        finder = finder --- (srcDir / ex ** "*.conf")
+      }
+      // Also exclude standard build directories
+      finder = finder --- (srcDir / "target" ** "*.conf")
+      finder = finder --- (srcDir / "project" ** "*.conf")
+      finder.get.sorted
+    }
+  }
+
+  // --- Process execution ---
+
+  private[plugin] def runRiddlcProcess(
+    binary: File,
+    globalOptions: Seq[String],
+    args: Seq[String],
+    workDir: File,
+    log: Logger
+  ): Int = {
+    log.info(s"Running: riddlc ${args.mkString(" ")}")
+    val errOutput = new StringBuilder
+    val outOutput = new StringBuilder
+    val logger = ProcessLogger(
+      out => { outOutput.append(out).append("\n"); () },
+      err => { errOutput.append(err).append("\n"); () }
+    )
+    val exitCode = Process(
+      binary.getAbsolutePath +: (globalOptions ++ args),
+      workDir
+    ).!(logger)
+
+    // Log output
+    val out = outOutput.toString.trim
+    if (out.nonEmpty) log.info(out)
+    if (exitCode != 0) {
+      val err = errOutput.toString.trim
+      if (err.nonEmpty) log.error(err)
+    }
+    exitCode
+  }
+
+  // --- Batch operations ---
+
+  /** Run an operation on each .conf file, collecting
+    * failures. Fails the build if any model fails.
+    */
+  private[plugin] def batchConfOperation(
+    binary: File,
+    srcDir: File,
+    confFiles: Seq[File],
+    globalOptions: Seq[String],
+    operationName: String,
+    log: Logger
+  )(
+    argsBuilder: File => Seq[String]
+  ): Unit = {
+    log.info(
+      s"Running $operationName on ${confFiles.size} " +
+      s"model(s)..."
+    )
+
+    var failures = List.empty[(String, String)]
+    var successes = 0
+
+    confFiles.foreach { conf =>
+      val relPath = srcDir.toPath
+        .relativize(conf.toPath).toString
+      val args = argsBuilder(conf)
+      val errBuf = new StringBuilder
+      val outBuf = new StringBuilder
+      val pLogger = ProcessLogger(
+        out => { outBuf.append(out).append("\n"); () },
+        err => { errBuf.append(err).append("\n"); () }
+      )
+      val exitCode = Process(
+        binary.getAbsolutePath +: (globalOptions ++ args),
+        conf.getParentFile
+      ).!(pLogger)
+
+      if (exitCode != 0) {
+        val detail =
+          if (errBuf.nonEmpty) errBuf.toString.trim
+          else outBuf.toString.trim
+        failures = (relPath, detail) :: failures
+        log.error(s"  FAILED: $relPath")
+      } else {
+        successes += 1
+        log.info(s"  OK: $relPath")
+      }
+    }
+
+    if (failures.nonEmpty) {
+      log.error("")
+      log.error(
+        s"${failures.size} model(s) failed $operationName:"
+      )
+      failures.reverse.foreach { case (path, detail) =>
+        log.error(s"--- $path ---")
+        if (detail.nonEmpty) log.error(detail)
+      }
+      sys.error(
+        s"${failures.size} of ${confFiles.size} models " +
+        s"failed riddlc $operationName"
+      )
+    } else {
+      log.info(
+        s"All ${confFiles.size} models passed " +
+        s"$operationName ($successes succeeded)."
+      )
+    }
+  }
+
+  /** Resolve conf files: multi-conf from sourceDir, or
+    * single-conf fallback. Returns empty if nothing found.
+    */
+  private[plugin] def resolveConfs(
+    srcDir: File,
+    exclusions: Seq[String],
+    singleConf: File,
+    log: Logger
+  ): Seq[File] = {
+    val multiConfs = findConfFiles(srcDir, exclusions)
+    if (multiConfs.nonEmpty) {
+      multiConfs
+    } else if (singleConf.exists()) {
+      Seq(singleConf)
+    } else {
+      log.warn(
+        "No .conf files found in " +
+        s"${srcDir.getAbsolutePath} and riddlcConf " +
+        s"${singleConf.getAbsolutePath} does not exist"
+      )
+      Seq.empty
+    }
+  }
+
+  // --- Interactive command support ---
+
+  private[plugin] def runRiddlcAction(
+    state: State,
+    args: Seq[String]
+  ): State = {
+    val project = Project.extract(state)
+    val (s1, binary) = project.runTask(riddlcBinary, state)
+    val options: Seq[String] = project.get(riddlcOptions)
+    val log = project.get(sLog)
+    val exitCode = runRiddlcProcess(
+      binary, options, args,
+      project.get(baseDirectory), log
+    )
+    if (exitCode != 0) {
+      log.error(s"riddlc exited with code $exitCode")
+    }
+    s1
+  }
+
+  // --- Project settings ---
+
+  private val userHome: File =
+    file(System.getProperty("user.home"))
+
+  override def projectSettings: Seq[Setting[_]] = Seq(
+    // Setting defaults
+    riddlcPath := None,
+    riddlcVersion := SbtRiddlPluginBuildInfo.version,
+    riddlcCacheDir := userHome / ".cache" / "riddlc",
+    riddlcMinVersion := SbtRiddlPluginBuildInfo.version,
+    riddlcOptions := Seq("--show-times"),
+    riddlcConf := baseDirectory.value / "src" / "main" /
+      "riddl" / "riddlc.conf",
+    riddlcSourceDir := baseDirectory.value / "src" /
+      "main" / "riddl",
+    riddlcConfExclusions := Seq("patterns"),
+    riddlcValidateOnCompile := true,
+
+    // --- Task implementations ---
+
+    riddlcDownload := {
+      val log = streams.value.log
+      val ver = riddlcVersion.value
+      val cache = riddlcCacheDir.value
+      downloadRiddlc(cache, ver, log)
+    },
+
+    riddlcBinary := {
+      val log = streams.value.log
+      val binary = riddlcPath.value match {
+        case Some(path) =>
+          if (!path.exists() || !path.canExecute) {
+            sys.error(
+              s"riddlcPath $path does not exist or " +
+              "is not executable"
+            )
+          }
+          path
+        case None =>
+          val ver = riddlcVersion.value
+          if (ver.nonEmpty) {
+            downloadRiddlc(riddlcCacheDir.value, ver, log)
+          } else {
+            findOnPathOrFail(log)
+          }
+      }
+      checkVersion(binary, riddlcMinVersion.value)
+      binary
+    },
+
+    riddlcInfo := {
+      val binary = riddlcBinary.value
+      val log = streams.value.log
+      runRiddlcProcess(
+        binary, riddlcOptions.value, Seq("info"),
+        baseDirectory.value, log
+      )
+      ()
+    },
+
+    riddlcShowVersion := {
+      val binary = riddlcBinary.value
+      val log = streams.value.log
+      runRiddlcProcess(
+        binary, Seq.empty, Seq("version"),
+        baseDirectory.value, log
+      )
+      ()
+    },
+
+    riddlcValidate := {
+      val binary = riddlcBinary.value
+      val srcDir = riddlcSourceDir.value
+      val exclusions = riddlcConfExclusions.value
+      val options = riddlcOptions.value
+      val singleConf = riddlcConf.value
+      val log = streams.value.log
+
+      val confs = resolveConfs(
+        srcDir, exclusions, singleConf, log
+      )
+      if (confs.nonEmpty) {
+        batchConfOperation(
+          binary, srcDir, confs, options, "validate", log
+        ) { conf =>
+          Seq("from", conf.getAbsolutePath, "validate")
+        }
+      }
+    },
+
+    riddlcParse := {
+      val binary = riddlcBinary.value
+      val srcDir = riddlcSourceDir.value
+      val exclusions = riddlcConfExclusions.value
+      val options = riddlcOptions.value
+      val singleConf = riddlcConf.value
+      val log = streams.value.log
+
+      val confs = resolveConfs(
+        srcDir, exclusions, singleConf, log
+      )
+      if (confs.nonEmpty) {
+        batchConfOperation(
+          binary, srcDir, confs, options, "parse", log
+        ) { conf =>
+          Seq("from", conf.getAbsolutePath, "parse")
+        }
+      }
+    },
+
+    riddlcBastify := {
+      val binary = riddlcBinary.value
+      val srcDir = riddlcSourceDir.value
+      val exclusions = riddlcConfExclusions.value
+      val options = riddlcOptions.value
+      val singleConf = riddlcConf.value
+      val log = streams.value.log
+
+      val confs = resolveConfs(
+        srcDir, exclusions, singleConf, log
+      )
+      if (confs.nonEmpty) {
+        batchConfOperation(
+          binary, srcDir, confs, options, "bastify", log
+        ) { conf =>
+          extractInputFile(conf) match {
+            case Some(inputFile) =>
+              val riddlFile =
+                conf.getParentFile / inputFile
+              Seq("bastify", riddlFile.getAbsolutePath)
+            case None =>
+              sys.error(
+                "Could not extract input-file from " +
+                conf.getAbsolutePath
+              )
+          }
+        }
+      }
+    },
+
+    riddlcPrettify := {
+      val binary = riddlcBinary.value
+      val srcDir = riddlcSourceDir.value
+      val exclusions = riddlcConfExclusions.value
+      val options = riddlcOptions.value
+      val singleConf = riddlcConf.value
+      val log = streams.value.log
+
+      val confs = resolveConfs(
+        srcDir, exclusions, singleConf, log
+      )
+      if (confs.nonEmpty) {
+        batchConfOperation(
+          binary, srcDir, confs, options, "prettify", log
+        ) { conf =>
+          extractInputFile(conf) match {
+            case Some(inputFile) =>
+              val modelDir = conf.getParentFile
+              val riddlFile = modelDir / inputFile
+              Seq(
+                "prettify",
+                riddlFile.getAbsolutePath,
+                "-o", modelDir.getAbsolutePath
+              )
+            case None =>
+              sys.error(
+                "Could not extract input-file from " +
+                conf.getAbsolutePath
+              )
+          }
+        }
+      }
+    },
+
+    // Pre-compile validation hook
+    Compile / compile := Def.taskDyn {
+      if (riddlcValidateOnCompile.value) {
+        Def.task {
+          riddlcValidate.value
+          (Compile / compile).value
+        }
+      } else {
+        Def.task {
+          (Compile / compile).value
+        }
+      }
+    }.value,
+
+    // Command wrappers for interactive sbt use
+    commands ++= Seq(
+      Command.command("validate") { s =>
+        "riddlcValidate" :: s
+      },
+      Command.command("bastify") { s =>
+        "riddlcBastify" :: s
+      },
+      Command.command("prettify") { s =>
+        "riddlcPrettify" :: s
+      },
+      Command.command("parse") { s =>
+        "riddlcParse" :: s
+      },
+      Command.command("info") { s =>
+        "riddlcInfo" :: s
+      },
+      Command.args("riddlc", "<args>") {
+        (state, args) => runRiddlcAction(state, args)
+      }
+    )
+  )
 }
