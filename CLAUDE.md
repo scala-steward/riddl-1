@@ -829,8 +829,8 @@ Then add to root aggregation: `.aggregate(..., mymodule, mymoduleJS, mymoduleNat
     ARM64. Removing `inline` fixes it; the compiler optimizes
     trivial delegations anyway. Filed as
     https://github.com/scala/scala3/issues/25306
-66. **Current release is 1.12.1** — Patch release fixing
-    prettify formatting regressions. Supersedes 1.12.0
+66. **Current release is 1.13.1** — sbt-riddl bugfix release.
+    Supersedes 1.13.0 (sbt-riddl rewrite)
 67. **PrettifyPass multi-file mode** — `PrettifyPass.Options`
     now carries `topFile`, `outputDir`, and `flatten`. When
     `flatten=false` (the new default), prettify preserves
@@ -852,11 +852,8 @@ Then add to root aggregation: `.aggregate(..., mymodule, mymoduleJS, mymoduleNat
     (hugo-theme-learn, redislabs-docs, hugo-theme-docdock)
     were causing warnings on `git pull`. No submodule paths
     were tracked in the tree; only `.gitmodules` remained
-71. **Current release is 1.12.1** — Patch release fixing three
-    prettify formatting regressions from 1.12.0: removed
-    commas between aggregate fields, kept `} with {` on same
-    line for types with metadata, preserved relative include
-    paths. Supersedes 1.12.0
+71. **Current release is 1.13.1** — sbt-riddl ANSI fix and
+    direct command invocation. Supersedes 1.13.0
 72. **RiddlFileEmitter.trimTrailingNewline()** — Removes a
     trailing newline from the StringBuilder. Used in
     `closeType` to join `}` from `emitFields` with ` with {`
@@ -867,3 +864,30 @@ Then add to root aggregation: `.aggregate(..., mymodule, mymoduleJS, mymoduleNat
     instead of `url.toExternalForm` (absolute `file:///`
     URL). This preserves the original include path as written
     in the source model
+74. **sbt-riddl rewritten with auto-download** — Plugin at
+    `sbt-riddl/src/.../RiddlSbtPlugin.scala` now auto-downloads
+    riddlc from GitHub releases, caches in
+    `~/.cache/riddlc/<version>/`. Three-tier resolution:
+    explicit path > download > PATH. Full command set:
+    validate, parse, bastify, prettify, info, version. Batch
+    .conf scanning with `riddlcSourceDir`/`riddlcConfExclusions`.
+    Pre-compile hook via `riddlcValidateOnCompile`. Curried
+    `riddlc()` helper for one-line project config
+75. **sbt plugin visibility: private[plugin]** — In sbt
+    plugins (Scala 2.12), `private def` methods appear unused
+    to the compiler because sbt macro-generated task bodies
+    (`:=`) reference them indirectly. Use `private[plugin] def`
+    to avoid "private method never used" errors
+76. **riddlc commands don't need `from <conf>`** — Individual
+    commands like `riddlc validate file.riddl` work directly.
+    The `from` command is only needed to load a full HOCON
+    config. The sbt-riddl plugin extracts `input-file` from
+    .conf files and invokes commands directly
+77. **riddlc version emits ANSI codes** — Output includes
+    `\u001b[34m\u001b[1m[info] 1.13.0\u001b[0m`. Use
+    `--no-ansi-messages` flag and strip residual ANSI/`[info]`
+    with regex before version parsing
+78. **Scripted tests need pinned riddlcVersion** — Between
+    releases, sbt-dynver produces snapshot versions like
+    `1.13.0-2-hash-date` which don't exist on GitHub. Pin
+    `riddlcVersion := "1.13.1"` in scripted test build.sbt

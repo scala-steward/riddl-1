@@ -15,7 +15,47 @@ to the task file and note completion in this notebook.
 
 ## Current Status
 
-**Last Updated**: February 19, 2026
+**Last Updated**: February 21, 2026
+
+### Release 1.13.1 Published (Feb 21, 2026)
+
+Bugfix patch for sbt-riddl plugin:
+- Fixed `checkVersion()` ANSI parsing — `riddlc version`
+  emits ANSI color codes causing `NumberFormatException`.
+  Added `--no-ansi-messages` flag and ANSI/`[info]` stripping
+- Changed all tasks (validate, parse, bastify, prettify) to
+  use direct riddlc commands instead of `from <conf>` wrapper.
+  Only the `from` command needs a `.conf` file; individual
+  commands like `riddlc validate file.riddl` work directly
+
+### Release 1.13.0 Published (Feb 21, 2026)
+
+Complete rewrite of `sbt-riddl` plugin (`RiddlSbtPlugin.scala`)
+from a minimal 4-command wrapper (~219 lines) to a full-featured
+plugin (~620 lines) with:
+- **Auto-download**: Downloads riddlc from GitHub releases,
+  cached in `~/.cache/riddlc/<version>/`. Platform detection
+  for macOS ARM64, Linux x86_64, JVM universal fallback
+- **Three-tier binary resolution**: explicit path > download >
+  PATH fallback
+- **Full command set**: validate, parse, bastify, prettify,
+  info, version (removed stale `hugo` command)
+- **Batch operations**: Scans `riddlcSourceDir` for `.conf`
+  files, runs operation on each, reports pass/fail per model
+- **Pre-compile validation**: `riddlcValidateOnCompile` setting
+  (default true) hooks into `Compile / compile`
+- **`riddlc()` curried helper**: One-line project configuration
+  via `.configure(riddlc(version = "1.13.1"))`
+- **Version checking**: Validates riddlc version meets minimum
+
+Key learnings:
+- `private def` in sbt plugins must be `private[plugin]`
+  because Scala 2.12 can't see usage through sbt macro-
+  generated task bodies (`:=`)
+- `java.nio.file.Path` shadows sbt's `Path` — avoid importing
+  both
+- Scripted tests between releases must pin `riddlcVersion` to
+  a real release tag, not the dynver snapshot
 
 ### Release 1.12.1 Published (Feb 19, 2026)
 
@@ -188,6 +228,21 @@ go there, not this repo.
 ---
 
 ## Session Log
+
+### February 21, 2026 — sbt-riddl Rewrite + Ship 1.13.0/1.13.1
+
+Complete rewrite of `RiddlSbtPlugin.scala` with auto-download
+from GitHub releases, batch conf operations, pre-compile
+validation hook, and full riddlc command set. Shipped as 1.13.0.
+
+Then fixed two bugs found during scripted testing:
+1. `checkVersion()` fails on ANSI output from `riddlc version`
+2. Tasks used `from <conf> <command>` which requires command
+   blocks in the conf — switched to direct `riddlc <command>
+   <file>` invocations
+
+Shipped bugfix as 1.13.1. Upgrade task files dropped in all 8
+consumer projects.
 
 ### February 18, 2026 — Prettify Multi-File Fix + Release
 
