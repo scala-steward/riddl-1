@@ -15,7 +15,17 @@ to the task file and note completion in this notebook.
 
 ## Current Status
 
-**Last Updated**: February 21, 2026
+**Last Updated**: February 24, 2026
+
+### Release 1.13.2 Published (Feb 24, 2026)
+
+Bugfix patch for sbt-riddl plugin:
+- Replaced `ProcessLogger` + `.!()` with `ProcessIO` +
+  `BasicIO.processFully` + `.exitValue()` in both `runRiddlc`
+  and `runBatch` methods
+- Fixes unsightly pipe-close exceptions in sbt shell when
+  riddlc subprocess streams close during termination
+- Tested via riddl-models before release
 
 ### Release 1.13.1 Published (Feb 21, 2026)
 

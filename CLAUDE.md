@@ -829,8 +829,8 @@ Then add to root aggregation: `.aggregate(..., mymodule, mymoduleJS, mymoduleNat
     ARM64. Removing `inline` fixes it; the compiler optimizes
     trivial delegations anyway. Filed as
     https://github.com/scala/scala3/issues/25306
-66. **Current release is 1.13.1** — sbt-riddl bugfix release.
-    Supersedes 1.13.0 (sbt-riddl rewrite)
+66. **Current release is 1.13.2** — sbt-riddl ProcessIO fix.
+    Supersedes 1.13.1
 67. **PrettifyPass multi-file mode** — `PrettifyPass.Options`
     now carries `topFile`, `outputDir`, and `flatten`. When
     `flatten=false` (the new default), prettify preserves
@@ -852,8 +852,8 @@ Then add to root aggregation: `.aggregate(..., mymodule, mymoduleJS, mymoduleNat
     (hugo-theme-learn, redislabs-docs, hugo-theme-docdock)
     were causing warnings on `git pull`. No submodule paths
     were tracked in the tree; only `.gitmodules` remained
-71. **Current release is 1.13.1** — sbt-riddl ANSI fix and
-    direct command invocation. Supersedes 1.13.0
+71. **Current release is 1.13.2** — sbt-riddl ProcessIO fix
+    to avoid pipe-close exceptions. Supersedes 1.13.1
 72. **RiddlFileEmitter.trimTrailingNewline()** — Removes a
     trailing newline from the StringBuilder. Used in
     `closeType` to join `}` from `emitFields` with ` with {`
@@ -891,3 +891,9 @@ Then add to root aggregation: `.aggregate(..., mymodule, mymoduleJS, mymoduleNat
     releases, sbt-dynver produces snapshot versions like
     `1.13.0-2-hash-date` which don't exist on GitHub. Pin
     `riddlcVersion := "1.13.1"` in scripted test build.sbt
+79. **sbt-riddl ProcessIO fix** — Replaced `ProcessLogger` +
+    `.!()` with `ProcessIO` + `BasicIO.processFully` +
+    `.exitValue()` to properly drain stdout/stderr before
+    process termination. Prevents pipe-close exceptions in
+    sbt shell output. Applied in both `runRiddlc` and
+    `runBatch` methods
