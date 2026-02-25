@@ -300,14 +300,19 @@ object RiddlSbtPlugin extends AutoPlugin {
     log.info(s"Running: riddlc ${args.mkString(" ")}")
     val errOutput = new StringBuilder
     val outOutput = new StringBuilder
-    val logger = ProcessLogger(
-      out => { outOutput.append(out).append("\n"); () },
-      err => { errOutput.append(err).append("\n"); () }
-    )
-    val exitCode = Process(
+    val proc = Process(
       binary.getAbsolutePath +: (globalOptions ++ args),
       workDir
-    ).!(logger)
+    ).run(new ProcessIO(
+      _.close(),
+      BasicIO.processFully { out =>
+        outOutput.append(out).append("\n"); ()
+      },
+      BasicIO.processFully { err =>
+        errOutput.append(err).append("\n"); ()
+      }
+    ))
+    val exitCode = proc.exitValue()
 
     // Log output
     val out = outOutput.toString.trim
@@ -348,14 +353,19 @@ object RiddlSbtPlugin extends AutoPlugin {
       val args = argsBuilder(conf)
       val errBuf = new StringBuilder
       val outBuf = new StringBuilder
-      val pLogger = ProcessLogger(
-        out => { outBuf.append(out).append("\n"); () },
-        err => { errBuf.append(err).append("\n"); () }
-      )
-      val exitCode = Process(
+      val proc = Process(
         binary.getAbsolutePath +: (globalOptions ++ args),
         conf.getParentFile
-      ).!(pLogger)
+      ).run(new ProcessIO(
+        _.close(),
+        BasicIO.processFully { out =>
+          outBuf.append(out).append("\n"); ()
+        },
+        BasicIO.processFully { err =>
+          errBuf.append(err).append("\n"); ()
+        }
+      ))
+      val exitCode = proc.exitValue()
 
       if (exitCode != 0) {
         val detail =
