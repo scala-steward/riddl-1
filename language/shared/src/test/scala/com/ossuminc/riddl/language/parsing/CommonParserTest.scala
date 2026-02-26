@@ -133,6 +133,33 @@ abstract class CommonParserTest(using PlatformContext) extends AbstractParsingTe
       }
     }
   }
+  "ParseErrorLocation" should {
+    "report error at end of offending line, not start of next line" in { (td: TestData) =>
+      // "type Money is Currency" is missing the type arguments e.g. Currency(USD)
+      // The error should point to line 2 (where "Currency" ends), not line 3
+      val input = RiddlParserInput(
+        "domain foo is {\n  type Money is Currency\n}\n",
+        td
+      )
+      parseTopLevelDomains(input) match
+        case Right(_) => fail("Expected parse failure but parsing succeeded")
+        case Left(messages) =>
+          val errors = messages.justErrors
+          errors must not be empty
+          // The error about the incomplete type should be on line 2
+          // (where "Currency" is), not line 3 (where "}" is)
+          val errorOnLine2 = errors.exists(_.loc.line == 2)
+          val errorOnLine3Only = errors.forall(_.loc.line == 3)
+          if errorOnLine3Only then
+            fail(
+              s"Error incorrectly reported on line 3 instead of line 2: " +
+                errors.map(m => s"${m.loc.line}:${m.loc.col} ${m.message}").mkString("; ")
+            )
+          end if
+          errorOnLine2 mustBe true
+    }
+  }
+
   "NoWhiteSpaceParsers" should {
     "handle a URL" in { (td: TestData) =>
       val input = RiddlParserInput("https://www.wordnik.com/words/phi", td)

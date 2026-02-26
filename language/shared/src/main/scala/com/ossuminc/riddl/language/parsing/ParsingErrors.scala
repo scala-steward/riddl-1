@@ -64,8 +64,31 @@ trait ParsingErrors {
       .mkString("(", " | ", ")")
   }
 
+  /** When a parse failure occurs, the failure index points to where
+    * fastparse found the unexpected token (the "next" token). For
+    * better UX, we want to point to where the expected token was
+    * missing — just after the last successfully consumed token.
+    * Only adjust if the next token is on a different line (crossing
+    * a newline), which is the case that confuses users the most.
+    */
+  private def adjustFailureIndex(index: Int, input: RiddlParserInput): Int =
+    val data = input.data
+    if index <= 0 || index > data.length then index
+    else
+      var i = index - 1
+      // Walk backward past whitespace
+      while i >= 0 && data(i).isWhitespace do i -= 1
+      // Only adjust if we crossed a newline
+      if i >= 0 && input.lineOf(i) < input.lineOf(index.min(data.length - 1)) then
+        i + 1 // Just after last non-whitespace char
+      else
+        index // Same line — keep original
+    end if
+  end adjustFailureIndex
+
   def makeParseFailureError(failure: Failure, input: RiddlParserInput): Unit = {
-    val location = input.location(failure.index)
+    val adjustedIndex = adjustFailureIndex(failure.index, input)
+    val location = input.location(adjustedIndex)
     val trace = failure.trace()
     val msg = trace.terminals.value.size match {
       case 0 => "Expected nothing"
