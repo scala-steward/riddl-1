@@ -193,6 +193,11 @@ jobs:
         cd language/jvm/src/test/python
         python validate_external_riddl.py --repo ${{ github.workspace }}/riddl-examples
 
+    - name: Verify GBNF is up-to-date
+      run: |
+        cd language/jvm/src/test/python
+        python ebnf_to_gbnf.py --check
+
   dependency-check:
     timeout-minutes: 15
     permissions:
