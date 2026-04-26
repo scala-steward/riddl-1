@@ -198,6 +198,11 @@ jobs:
         cd language/jvm/src/test/python
         python ebnf_to_gbnf.py --check
 
+    - name: Validate GBNF Grammar
+      run: |
+        cd language/jvm/src/test/python
+        python gbnf_validator.py --skip-freshness
+
   dependency-check:
     timeout-minutes: 15
     permissions:
