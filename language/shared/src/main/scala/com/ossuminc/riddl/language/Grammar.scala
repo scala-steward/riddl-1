@@ -11,13 +11,14 @@ import scala.util.{Try, Using}
 
 /** Provides access to the RIDDL grammar resources bundled with this module.
   *
-  * The EBNF grammar is included as a classpath resource and can be loaded
-  * by any project that depends on riddl-language.
+  * The EBNF grammar is included as a classpath resource and can be loaded by any project that
+  * depends on riddl-language.
   */
 object Grammar:
 
   /** The classpath location of the EBNF grammar file */
   val EbnfResourcePath: String = "riddl/grammar/ebnf-grammar.ebnf"
+  val GbnfResourcePath: String = "riddl/grammar/riddl-grammar.gbnf"
 
   /** Load the EBNF grammar from the classpath.
     *
@@ -44,6 +45,22 @@ object Grammar:
     */
   def loadEbnfGrammarOrThrow: String =
     loadEbnfGrammar match
+      case Right(grammar) => grammar
+      case Left(error)    => throw new RuntimeException(error)
+
+  def loadGbnfGrammar: Either[String, String] =
+    val classLoader = getClass.getClassLoader
+    Option(classLoader.getResourceAsStream(GbnfResourcePath)) match
+      case Some(stream) =>
+        Using(Source.fromInputStream(stream, "UTF-8")) { source =>
+          source.mkString
+        }.toEither.left.map(_.getMessage)
+      case None =>
+        Left(s"Grammar resource not found: $GbnfResourcePath")
+  end loadGbnfGrammar
+
+  def loadGbnfGrammarOrThrow: String =
+    loadGbnfGrammar match
       case Right(grammar) => grammar
       case Left(error)    => throw new RuntimeException(error)
 
